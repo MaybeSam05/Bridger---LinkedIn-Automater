@@ -7,7 +7,7 @@ def main():
     driver = webdriver.Chrome()
     driver.get("https://www.linkedin.com/login")
 
-    print("You have 30 seconds to log in manually...")
+    print("You have 30 seconds to log in")
     time.sleep(30)
 
     with open("linkedin_cookies.pkl", "wb") as file:
@@ -17,7 +17,10 @@ def main():
     driver.quit()
 
     take_screenshot("https://www.linkedin.com/in/tavleen-singh2006/")
-    take_screenshot("https://www.linkedin.com/in/raghul-ravindranathan-15657b161?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app")
+    take_screenshot("https://www.linkedin.com/in/raghul-ravindranathan-15657b161/")
+    take_screenshot("https://www.linkedin.com/in/krish-a-shah324/")
+    take_screenshot("https://www.linkedin.com/in/yasinehsan/")
+    take_screenshot("https://www.linkedin.com/in/trang-hoang-113020/")
 
 def take_screenshot(employee_link):
     
@@ -52,6 +55,8 @@ def take_screenshot(employee_link):
         time.sleep(1)
 
         screenshot_num += 1
+
+    print(f"✅ {directory} fully captured")
 
     driver.quit()
 
