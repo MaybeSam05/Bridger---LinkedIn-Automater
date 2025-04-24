@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 client = OpenAI()
+userLink = "https://www.linkedin.com/in/krish-a-shah324/"
 
 def main():
     driver = webdriver.Chrome()
@@ -24,7 +25,7 @@ def main():
     driver.quit()
 
     directory = take_screenshot("https://www.linkedin.com/in/raghul-ravindranathan-15657b161/")
-    generate_email(directory)
+    generate_email(userLink, directory)
 
 
 def take_screenshot(employee_link):
@@ -42,16 +43,18 @@ def take_screenshot(employee_link):
     driver.refresh()
     time.sleep(5)
 
-    # Get the page height
     page_height = driver.execute_script("return document.body.scrollHeight")
     viewport_height = driver.execute_script("return window.innerHeight")
 
     scroll_position = 0
     screenshot_num = 1
 
+    max_scrolls = page_height // viewport_height
+    stop_scrolls = max_scrolls - 2  
+
     os.mkdir(directory)
 
-    while scroll_position < page_height:
+    while scroll_position < page_height and screenshot_num <= stop_scrolls:
         driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
         print(f"📸 Saved screenshot {screenshot_num}")
 
@@ -71,7 +74,7 @@ def ask_employee_link():
     link = input("Enter the link to the employee's LinkedIn profile: ")
     return link.strip()
 
-def generate_email(image_dir):
+def generate_email(userLink, image_dir):
     
     image_files = [f for f in os.listdir(image_dir) if f.endswith(".png")]
     image_paths = [os.path.join(image_dir, f) for f in image_files]
@@ -89,9 +92,9 @@ def generate_email(image_dir):
             })
 
     messages = [
-        {"role": "system", "content": "You're helping draft a basic email for a 15-minute coffee chat."},
+        {"role": "system", "content": "You're helping draft an email for a 15-minute coffee chat."},
         {"role": "user", "content": [
-            {"type": "text", "text": "Here's a few screenshots from someone's LinkedIn profile. Use them to help write a simple email asking for a short coffee chat. Return only the text."},
+            {"type": "text", "text": f"Here's a few screenshots from someone's LinkedIn profile. Use them to help write an email asking for a short coffee chat. This is my linkedin profile: {userLink} . Try to find things in common and mention them in the email. Please include the phrase, 'I'm sure you're incredibly busy, but if you do have 15 minutes to connect, I'm free (and leave space for me to include times). If none of those work, just let me know what does and I'll make it work.' Return in format: '<subject>;<body>'"},
             *image_messages
         ]}
     ]
@@ -103,8 +106,11 @@ def generate_email(image_dir):
     )
 
     email = response.choices[0].message.content
-    print("📧 Generated email:", email)
+    print(email)
+    #subject, body = email.split(";")
 
+    #print("Subject:", subject)
+    #print("Body:", body)
 
 if __name__ == "__main__":
     main()
