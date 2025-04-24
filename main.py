@@ -1,6 +1,7 @@
 from selenium import webdriver
 import time
 import pickle
+import os
 
 def main():
     driver = webdriver.Chrome()
@@ -15,17 +16,15 @@ def main():
     print("✅ Cookies saved to linkedin_cookies.pkl")
     driver.quit()
 
-    take_screenshot()
+    take_screenshot("https://www.linkedin.com/in/tavleen-singh2006/")
+    take_screenshot("https://www.linkedin.com/in/raghul-ravindranathan-15657b161?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app")
 
-def take_screenshot():
+def take_screenshot(employee_link):
+    
     driver = webdriver.Chrome()
-
-    # Ask user for link to employee's LinkedIn profile
-    #employee_link = ask_employee_link()
-
-    employee_link = "https://www.linkedin.com/in/tavleen-singh2006/"
-
     driver.get(employee_link)
+
+    directory = employee_link.rstrip('/').split('/')[-1]
 
     with open("linkedin_cookies.pkl", "rb") as file:
         cookies = pickle.load(file)
@@ -34,8 +33,26 @@ def take_screenshot():
 
     driver.refresh()
     time.sleep(5)
-    driver.save_screenshot("screenshot.png")
-    print("✅ Screenshot saved as screenshot.png")
+
+    # Get the page height
+    page_height = driver.execute_script("return document.body.scrollHeight")
+    viewport_height = driver.execute_script("return window.innerHeight")
+
+    scroll_position = 0
+    screenshot_num = 1
+
+    os.mkdir(directory)
+
+    while scroll_position < page_height:
+        driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
+        print(f"📸 Saved screenshot {screenshot_num}")
+
+        scroll_position += viewport_height
+        driver.execute_script(f"window.scrollTo(0, {scroll_position});")
+        time.sleep(1)
+
+        screenshot_num += 1
+
     driver.quit()
 
 def ask_employee_link():
