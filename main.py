@@ -6,13 +6,22 @@ import base64
 from openai import OpenAI
 from PIL import Image
 from dotenv import load_dotenv
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from email.mime.text import MIMEText
+import sys
 
 load_dotenv()
 
 client = OpenAI()
 userLink = "https://www.linkedin.com/in/krish-a-shah324/"
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 def main():
+    gmail_service = authenticate_gmail()
+
     driver = webdriver.Chrome()
     driver.get("https://www.linkedin.com/login")
 
@@ -25,14 +34,45 @@ def main():
     print("✅ Cookies saved to linkedin_cookies.pkl")
     driver.quit()
 
-    directory = take_screenshot("https://www.linkedin.com/in/raghul-ravindranathan-15657b161/")
-    stitch_screenshots(directory)
-    directory = take_screenshot("https://www.linkedin.com/in/tavleen-singh2006/")
-    stitch_screenshots(directory)
-    directory = take_screenshot("https://www.linkedin.com/in/krish-a-shah324/")
-    stitch_screenshots(directory)
+    directories = []
+    directories.append(take_screenshot("https://www.linkedin.com/in/raghul-ravindranathan-15657b161/"))
+    directories.append(take_screenshot("https://www.linkedin.com/in/tavleen-singh2006/"))
+    directories.append(take_screenshot("https://www.linkedin.com/in/krish-a-shah324/"))
 
-    #generate_email(userLink, directory)
+    for directory in directories:
+        stitch_screenshots(directory)
+        sys.exit()
+        address, subject, body = generate_email(userLink, directory)
+        send_email(gmail_service, "me", address, subject, body)
+
+def authenticate_gmail():
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+
+    service = build('gmail', 'v1', credentials=creds)
+    print("✅ Gmail authentication successful.")
+    return service
+
+def send_email(service, user_id, to_email, subject, body):
+    message = MIMEText(body)
+    message['to'] = to_email
+    message['subject'] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    try:
+        sent_message = service.users().messages().send(userId=user_id, body={'raw': raw}).execute()
+        print(f"✅ Email sent to {to_email} with subject: {subject}")
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
 
 def stitch_screenshots(folder_name):
     folder_path = os.path.join(os.getcwd(), folder_name) 
@@ -107,12 +147,7 @@ def take_screenshot(employee_link):
 
     return directory
 
-def ask_employee_link():
-    link = input("Enter the link to the employee's LinkedIn profile: ")
-    return link.strip()
-
 def generate_email(userLink, image_dir):
-    
     stitched_path = os.path.join(image_dir, "stitched_screenshot.png")
 
     with open(stitched_path, "rb") as img_file:
@@ -129,7 +164,7 @@ def generate_email(userLink, image_dir):
     messages = [
         {"role": "system", "content": "You're helping draft an email for a 15-minute coffee chat."},
         {"role": "user", "content": [
-            {"type": "text", "text": f"Here's a screenshot from someone's LinkedIn profile. Use it to help write an email asking for a short coffee chat. This is my LinkedIn profile: {userLink} . Try to find things in common and mention them in the email. Please include the phrase, 'I'm sure you're incredibly busy, but if you do have 15 minutes to connect, I'm free (and leave space for me to include times). If none of those work, just let me know what does and I'll make it work.' Return in format: '<subject>;<body>'"},
+            {"type": "text", "text": f"Here's a screenshot from someone's LinkedIn profile. Use it to help write an email asking for a short coffee chat. Additionally return what you think is MOST LIKELY to be this user's email address. This is my LinkedIn profile: {userLink}. Try to find things in common and mention them in the email. Please include the phrase, 'I'm sure you're incredibly busy, but if you do have 15 minutes to connect, I'm free (and leave space for me to include times). If none of those work, just let me know what does and I'll make it work.' Return in format: 'email::subject::body'"},
             image_message
         ]}
     ]
@@ -143,14 +178,8 @@ def generate_email(userLink, image_dir):
     email = response.choices[0].message.content
     print(email)
 
-    # subject, body = email.split(";")
-    # print("Subject:", subject)
-    # print("Body:", body)
-
-    #subject, body = email.split(";")
-
-    #print("Subject:", subject)
-    #print("Body:", body)
+    address, subject, body = email.split("::")
+    return address.strip(), subject.strip(), body.strip()
 
 if __name__ == "__main__":
     main()
