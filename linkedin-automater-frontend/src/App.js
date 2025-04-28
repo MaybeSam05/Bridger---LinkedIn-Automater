@@ -5,8 +5,8 @@ import FeaturesSection from './components/FeaturesSection';
 function App() {
   return (
     <div className="font-sans">
-      <Hero />
       <Navbar />
+      <Hero />
       <FeaturesSection />
     </div>
   );
