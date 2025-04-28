@@ -14,7 +14,7 @@ const Navbar = () => {
       <div className="flex items-center">
 
           <img
-            src="/logo.png"
+            src="/finaldesignBG.png"
             alt="Bridger Logo"
             className= { img } style={{ height: "70px", width: "auto" }}
           />
