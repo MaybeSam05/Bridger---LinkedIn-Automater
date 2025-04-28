@@ -1,27 +1,32 @@
 import React from 'react';
 //import { Link } from 'react-router-dom';
 
+const banner = "py-4 px-6 md:px-12 flex justify-between items-center";
+const img = "object-contain";
+const getStartedButton = "text-white font-bold px-8 py-2 text-lg rounded-full hover:opacity-75 ";
+const logInButton = "text-white font-bold px-8 py-2 text-lg rounded-full hover:opacity-75";
+
 const Navbar = () => {
   return (
-    <header className="bg-white py-4 px-6 md:px-12 flex justify-between items-center shadow-sm">
+    <header className = { banner }>
       
       {/* Logo on the left */}
       <div className="flex items-center">
-        
+
           <img
             src="/logo.png"
             alt="Bridger Logo"
-            className="h-12 w-auto object-contain"
+            className= { img } style={{ height: "70px", width: "auto" }}
           />
         
       </div>
 
       {/* Buttons on the right */}
       <div className="flex items-center gap-4">
-        <button className="bg-gray-400 text-white hover:bg-gray-500 border-0 px-8 py-2 text-lg rounded">
+        <button className= { logInButton } style = {{ backgroundColor: '#A3A3A3' }} >
           Log in
         </button>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 text-lg rounded">
+        <button className= { getStartedButton } style={{ backgroundColor: '#0F689C' }}>
           Get Started Today!
         </button>
       </div>
