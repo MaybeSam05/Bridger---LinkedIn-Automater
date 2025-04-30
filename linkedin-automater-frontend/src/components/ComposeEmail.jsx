@@ -34,7 +34,7 @@ const ComposeEmail = () => {
 
       <div className="flex justify-between items-center">
 
-        <button className="bg-[#0F689C]  text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700 transition">
+        <button className="bg-[#0F689C] text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700 transition">
           <svg
             className="w-5 h-5"
             fill="none"
