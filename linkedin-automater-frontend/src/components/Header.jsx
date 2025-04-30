@@ -17,8 +17,6 @@ const Header = () => {
         />
       </div>
 
-      {/* Centered Title */}
-      <h2 className = { title } >LinkedIn Connection Tool</h2>
     </header>
   );
 };
