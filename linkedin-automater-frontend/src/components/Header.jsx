@@ -2,7 +2,6 @@ import React from "react";
 
 const banner = "py-4 px-6 md:px-12 relative flex items-center justify-between";
 const img = "object-contain";
-const title = "absolute left-1/2 transform -translate-x-1/2 text-3xl font-semibold mb-6";
 
 const Header = () => {
   return (
