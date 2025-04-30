@@ -2,7 +2,7 @@ import React from "react";
 import Confirmation from "../components/Confirmation";
 import Header from "../components/Header";
 
-function Done() {
+function Confirm() {
     return (
         <div>
             <Header/>
@@ -12,4 +12,4 @@ function Done() {
 }
 
 
-export default Done;
+export default Confirm;
