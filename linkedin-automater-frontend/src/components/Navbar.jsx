@@ -23,7 +23,7 @@ const Navbar = () => {
 
       {/* Buttons on the right */}
       <div className="flex items-center gap-4">
-        <button className= { logInButton } style = {{ backgroundColor: '#A3A3A3' }} >
+        <button className= { logInButton } style = {{ backgroundColor: '#A3A3A3'}} >
           Log in
         </button>
         <button className= { getStartedButton } style={{ backgroundColor: '#0F689C' }}>
