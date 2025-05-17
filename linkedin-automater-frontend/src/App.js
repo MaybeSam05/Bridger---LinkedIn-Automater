@@ -1,14 +1,20 @@
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import FeaturesSection from './components/FeaturesSection';
+import Tool from './pages/tool';
+import Login from './pages/login';
+import Confirm from './pages/confirm';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { StrictMode } from 'react';
+
+const router = createBrowserRouter([
+  {path: "/", element: <Login />},
+  {path: "/tool", element: <Tool />},
+  {path: "/confirm", element: <Confirm />},
+]);
 
 function App() {
   return (
-    <div className="font-sans">
-      <Navbar />
-      <Hero />
-      <FeaturesSection />
-    </div>
+    <StrictMode>
+    <RouterProvider router={router} />
+    </StrictMode>
   );
 }
 

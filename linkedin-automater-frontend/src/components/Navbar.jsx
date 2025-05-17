@@ -1,5 +1,5 @@
 import React from 'react';
-//import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 const banner = "py-4 px-6 md:px-12 flex justify-between items-center";
 const img = "object-contain";
@@ -10,15 +10,14 @@ const Navbar = () => {
   return (
     <header className = { banner }>
       
-      {/* Logo on the left */}
       <div className="flex items-center">
-
+        <Link to="/">
           <img
             src="/finaldesignBG.png"
             alt="Bridger Logo"
             className= { img } style={{ height: "70px", width: "auto" }}
           />
-        
+        </Link>
       </div>
 
       {/* Buttons on the right */}

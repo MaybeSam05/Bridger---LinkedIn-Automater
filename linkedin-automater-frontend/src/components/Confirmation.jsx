@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 const EmailSentConfirmation = () => {
   return (
@@ -27,9 +28,11 @@ const EmailSentConfirmation = () => {
       <p className="text-gray-600 mb-6">
         Your message has been delivered. Check your outbox for confirmation.
       </p>
+      <Link to="/tool">
         <button className="bg-[#0F689C] text-white px-4 py-2 rounded-md hover:bg-gray-800 transition">
           <span className="text-lg">+</span> New Connect
         </button>
+        </Link>
     </div>
   );
 };
