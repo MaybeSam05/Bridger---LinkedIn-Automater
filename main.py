@@ -2,7 +2,8 @@ from selenium import webdriver
 import time
 import pickle
 import os
-import base64
+import re
+import easyocr
 from openai import OpenAI
 from PIL import Image
 from dotenv import load_dotenv
@@ -16,12 +17,37 @@ import sys
 load_dotenv()
 
 client = OpenAI()
-userLink = "https://www.linkedin.com/in/krish-a-shah324/"
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 def main():
-    gmail_service = authenticate_gmail()
+    clientLink = "https://www.linkedin.com/in/sarah-benedicto/"
 
+    #gmail_service = authenticate_gmail()
+
+    # PART 1:
+    # validLink, saveCookies
+
+    userTXT = saveCookies()
+    print(userTXT) 
+
+
+    print("\n\n\n")
+    # PART 2: 
+    # validLink, clientProcess
+
+    clientTXT = clientProcess(clientLink)
+    print(clientTXT) 
+
+    print("\n\n\n")
+
+    # PART 3:
+    # generateEmail, send_email
+
+    address, subject, body = generate_email(userTXT, clientTXT)
+    sys.exit()
+    send_email(gmail_service, "me", address, subject, body)
+
+def saveCookies(): 
     driver = webdriver.Chrome()
     driver.get("https://www.linkedin.com/login")
 
@@ -32,18 +58,21 @@ def main():
         pickle.dump(driver.get_cookies(), file)
 
     print("✅ Cookies saved to linkedin_cookies.pkl")
+
     driver.quit()
 
-    directories = []
-    directories.append(take_screenshot("https://www.linkedin.com/in/raghul-ravindranathan-15657b161/"))
-    directories.append(take_screenshot("https://www.linkedin.com/in/tavleen-singh2006/"))
-    directories.append(take_screenshot("https://www.linkedin.com/in/krish-a-shah324/"))
+    take_screenshot("https://www.linkedin.com/in/me/")
+    outputPath = stitch_screenshots("me")
+    txt = convertIMGtoTXT(outputPath)
 
-    for directory in directories:
-        stitch_screenshots(directory)
-        sys.exit()
-        address, subject, body = generate_email(userLink, directory)
-        send_email(gmail_service, "me", address, subject, body)
+    return txt
+
+def clientProcess(clientLink):
+    directory = take_screenshot(clientLink)
+    outputPath = stitch_screenshots(directory)
+    txt = convertIMGtoTXT(outputPath)
+
+    return txt
 
 def authenticate_gmail():
     creds = None
@@ -151,25 +180,12 @@ def take_screenshot(employee_link):
 
     return directory
 
-def generate_email(userLink, image_dir):
-    stitched_path = os.path.join(image_dir, "stitched_screenshot.png")
-
-    with open(stitched_path, "rb") as img_file:
-        img_data = base64.b64encode(img_file.read()).decode("utf-8")
-
-    image_message = {
-        "type": "image_url",
-        "image_url": {
-            "url": f"data:image/png;base64,{img_data}",
-            "detail": "low"
-        }
-    }
-
+def generate_email(userTXT, clientTXT):
+    
     messages = [
         {"role": "system", "content": "You're helping draft an email for a 15-minute coffee chat."},
         {"role": "user", "content": [
-            {"type": "text", "text": f"Here's a screenshot from someone's LinkedIn profile. Use it to help write an email asking for a short coffee chat. Additionally return what you think is MOST LIKELY to be this user's email address. This is my LinkedIn profile: {userLink}. Try to find things in common and mention them in the email. Please include the phrase, 'I'm sure you're incredibly busy, but if you do have 15 minutes to connect, I'm free (and leave space for me to include times). If none of those work, just let me know what does and I'll make it work.' Return in format: 'email::subject::body'"},
-            image_message
+            {"type": "text", "text": f"Here's the text from someone's LinkedIn profile. Here: {clientTXT}. Use it to help write an email asking for a short coffee chat. Additionally return what you think is MOST LIKELY to be this user's email address. This is the text of my LinkedIn profile: {userTXT}. Try to find things in common and mention them in the email. Please include the phrase, 'I'm sure you're incredibly busy, but if you do have 15 minutes to connect, I'm free (and leave space for me to include times). If none of those work, just let me know what does and I'll make it work.' Return in format: 'email::subject::body'"},
         ]}
     ]
 
@@ -180,10 +196,29 @@ def generate_email(userLink, image_dir):
     )
 
     email = response.choices[0].message.content
-    print(email)
 
     address, subject, body = email.split("::")
+
+    print("Address:", address.strip())
+    print("Subject:", subject.strip())
+    print("Body:", body.strip())
+
     return address.strip(), subject.strip(), body.strip()
+
+def validLink(url):
+    pattern = r"^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?$"
+
+    if re.match(pattern, url):
+        return True
+    else:
+        return False
+
+def convertIMGtoTXT(image_path):
+    reader = easyocr.Reader(['en']) 
+    results = reader.readtext(image_path)
+    
+    all_text = ' '.join([result[1] for result in results])
+    return all_text
 
 if __name__ == "__main__":
     main()
