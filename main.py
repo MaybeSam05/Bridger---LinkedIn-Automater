@@ -3,7 +3,8 @@ import time
 import pickle
 import os
 import re
-import easyocr
+import easyocr 
+import base64
 from openai import OpenAI
 from PIL import Image
 from dotenv import load_dotenv
@@ -22,8 +23,9 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 def main():
     clientLink = "https://www.linkedin.com/in/sarah-benedicto/"
 
-    #gmail_service = authenticate_gmail()
-
+    gmail_service = authenticate_gmail()
+    print(type(gmail_service))
+    sys.exit()
     # PART 1:
     # validLink, saveCookies
 
@@ -33,18 +35,17 @@ def main():
 
     print("\n\n\n")
     # PART 2: 
-    # validLink, clientProcess
+    # validLink, clientProcess, generateEmail
 
     clientTXT = clientProcess(clientLink)
-    print(clientTXT) 
+    print(clientTXT)
+    address, subject, body = generate_email(userTXT, clientTXT)
 
     print("\n\n\n")
 
     # PART 3:
-    # generateEmail, send_email
+    # send_email
 
-    address, subject, body = generate_email(userTXT, clientTXT)
-    sys.exit()
     send_email(gmail_service, "me", address, subject, body)
 
 def saveCookies(): 
@@ -77,9 +78,6 @@ def clientProcess(clientLink):
 def authenticate_gmail():
     creds = None
 
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -93,7 +91,6 @@ def authenticate_gmail():
             token.write(creds.to_json())
 
     service = build('gmail', 'v1', credentials=creds)
-    print(f"✅ Authenticated as {creds.id_token['email']}")
     return service
 
 def send_email(service, user_id, to_email, subject, body):
