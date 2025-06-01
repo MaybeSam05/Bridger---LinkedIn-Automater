@@ -13,6 +13,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
+import shutil
 import sys
 
 load_dotenv()
@@ -21,34 +22,33 @@ client = OpenAI()
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 def main():
-    clientLink = "https://www.linkedin.com/in/sarah-benedicto/"
 
     # PART 0:
     # authenticate_gmail
 
-    gmail_service = authenticate_gmail()
+    #gmail_service = authenticate_gmail()
 
     # PART 1:
     # validLink, saveCookies
 
-    userTXT = saveCookies()
-    print(userTXT) 
+    #userTXT = saveCookies()
+    #print(userTXT) 
 
 
     print("\n\n\n")
     # PART 2: 
     # validLink, clientProcess, generateEmail
 
-    clientTXT = clientProcess(clientLink)
-    print(clientTXT)
-    address, subject, body = generate_email(userTXT, clientTXT)
+    #clientTXT = clientProcess(clientLink)
+    #print(clientTXT)
+    #address, subject, body = generate_email(userTXT, clientTXT)
 
-    print("\n\n\n")
+    #print("\n\n\n")
 
     # PART 3:
     # send_email
 
-    send_email(gmail_service, "me", address, subject, body)
+    #send_email(gmail_service, "me", address, subject, body)
 
 def saveCookies(): 
     driver = webdriver.Chrome()
@@ -95,16 +95,39 @@ def authenticate_gmail():
     service = build('gmail', 'v1', credentials=creds)
     return service
 
-def send_email(service, user_id, to_email, subject, body):
-    message = MIMEText(body)
-    message['to'] = to_email
-    message['subject'] = subject
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+def send_email(user_id, to_email, subject, body):
+    creds = None
+    if os.path.exists('token.json'):
+        try:
+            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        except Exception as e:
+            print(f"Error loading credentials: {e}")
+            return False
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+            except Exception as e:
+                print(f"Error refreshing credentials: {e}")
+                return False
+        else:
+            print("No valid credentials available")
+            return False
+
     try:
+        service = build('gmail', 'v1', credentials=creds)
+        message = MIMEText(body)
+        message['to'] = to_email
+        message['subject'] = subject
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        
         sent_message = service.users().messages().send(userId=user_id, body={'raw': raw}).execute()
         print(f"✅ Email sent to {to_email} with subject: {subject}")
+        return True
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
+        return False
 
 def stitch_screenshots(folder_name):
     folder_path = os.path.join(os.getcwd(), folder_name) 
@@ -144,6 +167,11 @@ def take_screenshot(employee_link):
 
     directory = employee_link.rstrip('/').split('/')[-1]
 
+    if os.path.exists(directory):
+        shutil.rmtree(directory)
+
+    os.mkdir(directory)
+
     with open("linkedin_cookies.pkl", "rb") as file:
         cookies = pickle.load(file)
         for cookie in cookies:
@@ -159,8 +187,6 @@ def take_screenshot(employee_link):
     screenshot_num = 1
 
     max_scrolls = page_height // viewport_height
-
-    os.mkdir(directory)
 
     while scroll_position < page_height:
         driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
@@ -183,7 +209,7 @@ def generate_email(userTXT, clientTXT):
     messages = [
         {"role": "system", "content": "You're helping draft an email for a 15-minute coffee chat."},
         {"role": "user", "content": [
-            {"type": "text", "text": f"Here's the text from someone's LinkedIn profile. Here: {clientTXT}. Use it to help write an email asking for a short coffee chat. Additionally return what you think is MOST LIKELY to be this user's email address. This is the text of my LinkedIn profile: {userTXT}. Try to find things in common and mention them in the email. Please include the phrase, 'I'm sure you're incredibly busy, but if you do have 15 minutes to connect, I'm free (and leave space for me to include times). If none of those work, just let me know what does and I'll make it work.' Return in format: 'email::subject::body'"},
+            {"type": "text", "text": f"You are a professional email assistant. I will give you two blocks of OCR-copied text from LinkedIn profiles: one from my own profile and one from the profile of a person I want to connect with. Your task is to: Analyze both profiles, Identify at least one genuine point of connection between us (this could be based on shared college/university, similar job roles, industries, locations, mutual interests, connections, organizations, or career paths), Compose a short, warm, professional email where I reach out to request a 15-minute virtual coffee chat. Guidelines: Be polite, conversational, and authentic. Mention the point of connection early to establish rapport. Include a clear ask for a short meeting (15-minute coffee chat) and offer flexibility. Keep it under 150 words. Do not fabricate shared details, only use what you can infer from the OCR data. I will paste two blocks of text below: Here is my Linkedin OCR data: {userTXT} and here is my connection's OCR data: {clientTXT}. RETURN ONLY connection's most likely email address, subject, and body. DO NOT RETURN ANYTHING ELSE, RETURN PLAIN TEXT ONLY, DO NOT ADD HEADERS. Return in this format: email//subject//body"},
         ]}
     ]
 
@@ -195,11 +221,7 @@ def generate_email(userTXT, clientTXT):
 
     email = response.choices[0].message.content
 
-    address, subject, body = email.split("::")
-
-    print("Address:", address.strip())
-    print("Subject:", subject.strip())
-    print("Body:", body.strip())
+    address, subject, body = email.split("//")
 
     return address.strip(), subject.strip(), body.strip()
 

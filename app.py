@@ -20,7 +20,6 @@ class SetupRequest(BaseModel):
 
 class ConnectionRequest(BaseModel):
     link: str
-    userTXT: str
 
 class EmailRequest(BaseModel):
     address: str
@@ -67,5 +66,8 @@ def find_connection(req: ConnectionRequest):
 
 @api.post("/send_email")
 def send_email_endpoint(req: EmailRequest):
-    main.send_email(req.gmail_service, "me", req.address, req.subject, req.body) # CHANGE THIS LINE!!!
-    return {"message": "Email sent successfully"}
+    success = main.send_email("me", req.address, req.subject, req.body)
+    if success:
+        return {"message": "Email sent successfully"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send email")
