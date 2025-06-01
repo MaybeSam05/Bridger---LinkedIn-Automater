@@ -233,12 +233,19 @@ def validLink(url):
     else:
         return False
 
+def clean_ocr_text(text):
+    return text[150:-700] if len(text) > 850 else ''
+
+
 def convertIMGtoTXT(image_path):
     reader = easyocr.Reader(['en']) 
     results = reader.readtext(image_path)
     
     all_text = ' '.join([result[1] for result in results])
-    return all_text
+    # Clean the OCR text before returning
+    cleaned_text = clean_ocr_text(all_text)
+    print(cleaned_text)
+    return cleaned_text
 
 if __name__ == "__main__":
     main()

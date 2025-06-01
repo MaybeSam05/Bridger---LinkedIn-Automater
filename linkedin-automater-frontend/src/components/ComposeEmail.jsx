@@ -27,6 +27,10 @@ const ComposeEmail = ({ address, subject, body }) => {
       });
       
       setSendStatus('success');
+      // Clear the fields after successful send
+      setEditedAddress("");
+      setEditedSubject("");
+      setEditedBody("");
     } catch (error) {
       console.error("Failed to send email:", error);
       setSendStatus('error');
