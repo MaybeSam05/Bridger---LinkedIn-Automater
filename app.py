@@ -23,10 +23,11 @@ class ConnectionRequest(BaseModel):
     userTXT: str
 
 class EmailRequest(BaseModel):
-    #gmail_service: str
     address: str
     subject: str
     body: str
+
+usertext = ""
 
 @api.get("/")
 def testing():
@@ -42,20 +43,21 @@ def authenticate_gmail():
 
 @api.post("/setup")
 def setup_profile(req: SetupRequest):
-    if main.validlink(req.link):
-        userTXT = main.savecookies(req.link)
-        return {"status": "valid", "userTXT": userTXT}
+    if main.validLink(req.link):
+        userTXT = main.saveCookies()
+        usertext = userTXT # TEMPORARY GLOBAL VARIABLE REMOVE AFTER
+        return {"status": "valid"}
     else:
+        print("Invalid LinkedIn URL")
         raise HTTPException(status_code=400, detail="Invalid LinkedIn URL")
 
 @api.post("/find_connection")
 def find_connection(req: ConnectionRequest):
-    if main.validlink(req.link):
+    if main.validLink(req.link):
         clientTXT = main.clientProcess(req.link)
-        address, subject, body = main.generate_email(req.userTXT, clientTXT)
+        address, subject, body = main.generate_email(usertext, clientTXT)
         return {
             "status": "valid",
-            "clientTXT": clientTXT,
             "address": address,
             "subject": subject,
             "body": body

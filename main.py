@@ -23,9 +23,11 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 def main():
     clientLink = "https://www.linkedin.com/in/sarah-benedicto/"
 
+    # PART 0:
+    # authenticate_gmail
+
     gmail_service = authenticate_gmail()
-    print(type(gmail_service))
-    sys.exit()
+
     # PART 1:
     # validLink, saveCookies
 
@@ -157,11 +159,10 @@ def take_screenshot(employee_link):
     screenshot_num = 1
 
     max_scrolls = page_height // viewport_height
-    stop_scrolls = max_scrolls - 2  
 
     os.mkdir(directory)
 
-    while scroll_position < page_height and screenshot_num <= stop_scrolls:
+    while scroll_position < page_height:
         driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
         print(f"📸 Saved screenshot {screenshot_num}")
 
