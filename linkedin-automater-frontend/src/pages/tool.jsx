@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import UserProfile from '../components/userProfile';
 import ConnectionProfile from '../components/ConnectionProfile';
 import ComposeEmail from '../components/ComposeEmail';
+import EmailHistory from '../components/EmailHistory';
 
 function Tool() {
   const [emailData, setEmailData] = useState(null); // holds { address, subject, body }
@@ -21,6 +22,7 @@ function Tool() {
               body={emailData.body}
             />
           )}
+          <EmailHistory />
         </div>
       </div>
     </div>
