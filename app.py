@@ -55,6 +55,7 @@ def find_connection(req: ConnectionRequest):
     if main.validLink(req.link):
         clientTXT = main.clientProcess(req.link)
         address, subject, body = main.generate_email(usertext, clientTXT)
+        
         return {
             "status": "valid",
             "address": address,

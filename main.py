@@ -1,4 +1,7 @@
 from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 import time
 import pickle
 import os
@@ -21,54 +24,35 @@ load_dotenv()
 client = OpenAI()
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
-def main():
-
-    # PART 0:
-    # authenticate_gmail
-
-    #gmail_service = authenticate_gmail()
-
-    # PART 1:
-    # validLink, saveCookies
-
-    #userTXT = saveCookies()
-    #print(userTXT) 
-
-
-    print("\n\n\n")
-    # PART 2: 
-    # validLink, clientProcess, generateEmail
-
-    #clientTXT = clientProcess(clientLink)
-    #print(clientTXT)
-    #address, subject, body = generate_email(userTXT, clientTXT)
-
-    #print("\n\n\n")
-
-    # PART 3:
-    # send_email
-
-    #send_email(gmail_service, "me", address, subject, body)
-
 def saveCookies(): 
     driver = webdriver.Chrome()
-    driver.get("https://www.linkedin.com/login")
-
-    print("You have 30 seconds to log in")
-    time.sleep(30)
-
-    with open("linkedin_cookies.pkl", "wb") as file:
-        pickle.dump(driver.get_cookies(), file)
-
-    print("✅ Cookies saved to linkedin_cookies.pkl")
-
-    driver.quit()
-
-    take_screenshot("https://www.linkedin.com/in/me/")
-    outputPath = stitch_screenshots("me")
-    txt = convertIMGtoTXT(outputPath)
-
-    return txt
+    try:
+        driver.get("https://www.linkedin.com/login")
+        max_wait_time = 45
+        
+        print("Please log in to LinkedIn...")
+        
+        wait = WebDriverWait(driver, max_wait_time)
+        try:
+            wait.until(lambda driver: "linkedin.com/feed" in driver.current_url)
+            print("✅ Successfully logged in!")
+        except:
+            print("⚠️ Login timeout reached")
+        
+        with open("linkedin_cookies.pkl", "wb") as file:
+            pickle.dump(driver.get_cookies(), file)
+        print("✅ Cookies saved to linkedin_cookies.pkl")
+        
+        driver.close()
+        
+        take_screenshot("https://www.linkedin.com/in/me/")
+        outputPath = stitch_screenshots("me")
+        txt = convertIMGtoTXT(outputPath)
+        
+        return txt
+        
+    finally:
+        driver.quit()
 
 def clientProcess(clientLink):
     directory = take_screenshot(clientLink)
@@ -161,91 +145,187 @@ def stitch_screenshots(folder_name):
     return output_path
 
 def take_screenshot(employee_link):
-    
     driver = webdriver.Chrome()
-    driver.get(employee_link)
+    try:
+        driver.get(employee_link)
+        directory = employee_link.rstrip('/').split('/')[-1]
 
-    directory = employee_link.rstrip('/').split('/')[-1]
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+        os.mkdir(directory)
 
-    if os.path.exists(directory):
-        shutil.rmtree(directory)
+        with open("linkedin_cookies.pkl", "rb") as file:
+            cookies = pickle.load(file)
+            for cookie in cookies:
+                driver.add_cookie(cookie)
 
-    os.mkdir(directory)
+        driver.refresh()
+        
+        wait = WebDriverWait(driver, 10)
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-    with open("linkedin_cookies.pkl", "rb") as file:
-        cookies = pickle.load(file)
-        for cookie in cookies:
-            driver.add_cookie(cookie)
+        page_height = driver.execute_script("return document.body.scrollHeight")
+        viewport_height = driver.execute_script("return window.innerHeight")
+        scroll_position = 0
+        screenshot_num = 1
 
-    driver.refresh()
-    time.sleep(5)
+        while scroll_position < page_height:
+            wait.until(lambda driver: driver.execute_script(
+                "return document.readyState"
+            ) == "complete")
+            
+            time.sleep(0.5)
+            
+            driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
+            scroll_position += viewport_height
+            driver.execute_script(f"window.scrollTo(0, {scroll_position});")
+            screenshot_num += 1
 
-    page_height = driver.execute_script("return document.body.scrollHeight")
-    viewport_height = driver.execute_script("return window.innerHeight")
+        return directory
+    finally:
+        driver.quit()
 
-    scroll_position = 0
-    screenshot_num = 1
-
-    max_scrolls = page_height // viewport_height
-
-    while scroll_position < page_height:
-        driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
-        print(f"📸 Saved screenshot {screenshot_num}")
-
-        scroll_position += viewport_height
-        driver.execute_script(f"window.scrollTo(0, {scroll_position});")
-        time.sleep(1)
-
-        screenshot_num += 1
-
-    print(f"✅ {directory} fully captured")
-
-    driver.quit()
-
-    return directory
+def structure_profile_data(text):
+    location_pattern = re.compile(r'(?i)area|region|location')
+    
+    sections = {
+        "name": "",
+        "headline": "",
+        "education": set(),
+        "experience": set(),
+        "location": "",
+        "about": set(),
+        "skills": set()
+    }
+    
+    section_markers = {
+        "education": {"education", "university", "college", "school"},
+        "experience": {"experience", "work", "employment"},
+        "skills": {"skills", "expertise", "technologies"},
+        "about": {"about", "overview", "summary"}
+    }
+    
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    current_section = None
+    
+    for i, line in enumerate(lines):
+        line_lower = line.lower()
+        
+        if not sections["name"] and i < 5 and len(line.split()) <= 4:
+            sections["name"] = line
+            continue
+            
+        if not sections["headline"] and i < 7:
+            if any(keyword in line_lower for keyword in {"student", "engineer", "developer"}):
+                sections["headline"] = line
+                continue
+        
+        if not sections["location"] and location_pattern.search(line_lower):
+            sections["location"] = line
+            continue
+            
+        section_found = False
+        for section, markers in section_markers.items():
+            if any(marker in line_lower for marker in markers):
+                current_section = section
+                section_found = True
+                break
+                
+        if not section_found and current_section and len(line) > 3:
+            sections[current_section].add(line)
+    
+    for section in ["education", "experience", "skills", "about"]:
+        sections[section] = list(sections[section])
+    
+    formatted_text = [
+        f"Name: {sections['name']}",
+        f"Headline: {sections['headline']}",
+        f"Location: {sections['location']}",
+        "",
+        "About:",
+        ' '.join(sections['about']) if sections['about'] else 'Not specified',
+        "",
+        "Education:",
+        '\n'.join('- ' + edu for edu in sections['education']) if sections['education'] else 'Not specified',
+        "",
+        "Experience:",
+        '\n'.join('- ' + exp for exp in sections['experience']) if sections['experience'] else 'Not specified',
+        "",
+        "Skills:",
+        '\n'.join('- ' + skill for skill in sections['skills']) if sections['skills'] else 'Not specified'
+    ]
+    
+    return '\n'.join(formatted_text)
 
 def generate_email(userTXT, clientTXT):
-    
-    messages = [
-        {"role": "system", "content": "You're helping draft an email for a 15-minute coffee chat."},
-        {"role": "user", "content": [
-            {"type": "text", "text": f"You are a professional email assistant. I will give you two blocks of OCR-copied text from LinkedIn profiles: one from my own profile and one from the profile of a person I want to connect with. Your task is to: Analyze both profiles, Identify at least one genuine point of connection between us (this could be based on shared college/university, similar job roles, industries, locations, mutual interests, connections, organizations, or career paths), Compose a short, warm, professional email where I reach out to request a 15-minute virtual coffee chat. Guidelines: Be polite, conversational, and authentic. Mention the point of connection early to establish rapport. Include a clear ask for a short meeting (15-minute coffee chat) and offer flexibility. Keep it under 150 words. Do not fabricate shared details, only use what you can infer from the OCR data. I will paste two blocks of text below: Here is my Linkedin OCR data: {userTXT} and here is my connection's OCR data: {clientTXT}. RETURN ONLY connection's most likely email address, subject, and body. DO NOT RETURN ANYTHING ELSE, RETURN PLAIN TEXT ONLY, DO NOT ADD HEADERS. Return in this format: email//subject//body"},
-        ]}
-    ]
+    try:
+        structured_user = structure_profile_data(userTXT)
+        structured_client = structure_profile_data(clientTXT)
+        
+        messages = [
+            {"role": "system", "content": "You're helping draft an email for a 15-minute coffee chat."},
+            {"role": "user", "content": [
+                {"type": "text", "text": f"""You are a professional email assistant. I will give you two structured LinkedIn profiles: mine and one from a person I want to connect with.
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        max_tokens=300
-    )
+My LinkedIn Profile:
+{structured_user}
 
-    email = response.choices[0].message.content
+Their LinkedIn Profile:
+{structured_client}
 
-    address, subject, body = email.split("//")
+Your task is to:
+1. Analyze both profiles
+2. Identify genuine points of connection (education, job roles, industries, locations, interests, etc.)
+3. Compose a short, warm, professional email requesting a 15-minute virtual coffee chat
+4. Be polite and authentic
+5. Mention connections early to establish rapport
+6. Keep it under 150 words
+7. Only use information from the profiles
 
-    return address.strip(), subject.strip(), body.strip()
+Return in this format ONLY:
+email//subject//body"""}
+            ]}
+        ]
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            max_tokens=300
+        )
+
+        email = response.choices[0].message.content.strip()
+        parts = email.split("//")
+
+        address = ""
+        subject = ""
+        body = ""
+
+        if len(parts) == 1:
+            body = parts[0].strip()
+        elif len(parts) == 2:
+            subject = parts[0].strip()
+            body = parts[1].strip()
+        elif len(parts) >= 3:
+            address = parts[0].strip()
+            subject = parts[1].strip()
+            body = parts[2].strip()
+
+        return address, subject, body
+
+    except Exception as e:
+        print(f"Error generating email: {str(e)}")
+        return "", "", ""
 
 def validLink(url):
-    pattern = r"^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?$"
-
-    if re.match(pattern, url):
-        return True
-    else:
-        return False
+    pattern = re.compile(r"^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?$")
+    return bool(pattern.match(url))
 
 def clean_ocr_text(text):
     return text[150:-700] if len(text) > 850 else ''
 
-
 def convertIMGtoTXT(image_path):
-    reader = easyocr.Reader(['en']) 
+    reader = easyocr.Reader(['en'], gpu=False) 
     results = reader.readtext(image_path)
-    
-    all_text = ' '.join([result[1] for result in results])
-    # Clean the OCR text before returning
+    all_text = ' '.join(result[1] for result in results)
     cleaned_text = clean_ocr_text(all_text)
-    print(cleaned_text)
     return cleaned_text
-
-if __name__ == "__main__":
-    main()
