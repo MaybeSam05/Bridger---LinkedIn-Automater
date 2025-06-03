@@ -583,7 +583,7 @@ def clean_ocr_text(text):
     if len(text) > 850:
         # Keep track of original and cleaned lengths
         original_length = len(text)
-        cleaned = text[150:-700]
+        cleaned = text[150:-800]
         cleaned_length = len(cleaned)
         print(f"\nText cleaning stats:")
         print(f"Original length: {original_length} characters")
