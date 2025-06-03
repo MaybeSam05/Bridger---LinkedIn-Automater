@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axiosInstance from "../config/axios";
 
 const UserProfile = () => {
   const [done, setDone] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [userId, setUserId] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
 
-  // Check for existing session on component mount
+  // Check LinkedIn authentication status on component mount
   useEffect(() => {
-    const savedUserId = localStorage.getItem('userId');
-    const savedSessionId = localStorage.getItem('sessionId');
-    if (savedUserId && savedSessionId) {
-      setUserId(savedUserId);
-      setSessionId(savedSessionId);
-      setDone(true);
-    }
+    const checkUserStatus = async () => {
+      try {
+        const response = await axiosInstance.get("/check_linkedin_status");
+        setDone(response.data.has_linkedin_cookies);
+      } catch (err) {
+        console.error("Error checking LinkedIn status:", err);
+        setError(true);
+      }
+    };
+
+    checkUserStatus();
   }, []);
 
   const runScript = async () => {
@@ -25,18 +27,13 @@ const UserProfile = () => {
     setError(false);
 
     try {
-      const response = await axios.post(
-        "http://127.0.0.1:8000/setup",
-        {},  // No need to send link anymore
+      const response = await axiosInstance.post(
+        "/setup",
+        {},
         { withCredentials: true } // Important: This enables cookie handling
       );
 
       if (response.data.status === "valid") {
-        // Save user and session IDs
-        localStorage.setItem('userId', response.data.user_id);
-        localStorage.setItem('sessionId', response.data.session_id);
-        setUserId(response.data.user_id);
-        setSessionId(response.data.session_id);
         setDone(true);
       } else {
         setError(true);
@@ -49,7 +46,7 @@ const UserProfile = () => {
     }
   };
 
-  if (done && userId && sessionId) {
+  if (done) {
     return (
       <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow border">
         <h2 className="text-xl font-semibold mb-4">Your Profile</h2>
@@ -59,9 +56,7 @@ const UserProfile = () => {
         </div>
         <div className="mt-4">
           <button
-            onClick={() => {
-              setDone(false);
-            }}
+            onClick={() => setDone(false)}
             className="text-[#0F689C] hover:text-blue-700 underline text-sm"
           >
             Reset Profile or Update LinkedIn Cookies

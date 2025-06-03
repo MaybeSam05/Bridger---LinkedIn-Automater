@@ -18,11 +18,17 @@ from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 import shutil
 import sys
+import json
+from datetime import datetime
 
 load_dotenv()
 
 client = OpenAI()
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'openid'
+]
 
 def saveCookies(): 
     driver = webdriver.Chrome()
@@ -39,12 +45,17 @@ def saveCookies():
             print("✅ Successfully logged in!")
         except:
             print("⚠️ Login timeout reached")
-            return None
+            return None, None
         
-        print("Saving cookies...")
-        with open("linkedin_cookies.pkl", "wb") as file:
-            pickle.dump(driver.get_cookies(), file)
-        print("✅ Cookies saved to linkedin_cookies.pkl")
+        print("Getting cookies...")
+        cookies = driver.get_cookies()
+        cookies_bytes = pickle.dumps(cookies)
+        cookies_base64 = base64.b64encode(cookies_bytes).decode('utf-8')
+        cookies_json = json.dumps({
+            "cookie_data": cookies_base64,
+            "created_at": datetime.now().isoformat()
+        })
+        print("✅ Cookies captured")
         
         print("Navigating to your profile...")
         # Navigate to user's profile using /me
@@ -120,11 +131,11 @@ def saveCookies():
         txt = convertIMGtoTXT(outputPath)
         print("✅ Profile data extracted")
         
-        return txt
+        return txt, cookies_json
         
     except Exception as e:
         print(f"❌ Error in saveCookies: {e}")
-        return None
+        return None, None
     finally:
         print("Closing browser...")
         try:
@@ -133,23 +144,31 @@ def saveCookies():
             pass
         print("✅ Browser closed")
 
-def clientProcess(clientLink):
+def clientProcess(clientLink, user_cookies_json=None):
+    if not user_cookies_json:
+        raise ValueError("LinkedIn cookies not provided")
+        
     driver = webdriver.Chrome()
     try:
         print(f"Opening connection's profile: {clientLink}")
         driver.get(clientLink)
         
-        print("Loading saved cookies...")
-        # Load cookies
-        with open("linkedin_cookies.pkl", "rb") as file:
-            cookies = pickle.load(file)
+        print("Loading cookies from database...")
+        # Decode and load cookies from database
+        try:
+            cookies_data = json.loads(user_cookies_json)
+            cookie_bytes = base64.b64decode(cookies_data["cookie_data"])
+            cookies = pickle.loads(cookie_bytes)
             for cookie in cookies:
                 driver.add_cookie(cookie)
-        
-        # Refresh to apply cookies
-        driver.refresh()
-        time.sleep(2)  # Give time for page to load
-        print("✅ Cookies loaded")
+            
+            # Refresh to apply cookies
+            driver.refresh()
+            time.sleep(2)  # Give time for page to load
+            print("✅ Cookies loaded")
+        except Exception as e:
+            print(f"❌ Error loading cookies: {e}")
+            raise
         
         # Create directory for screenshots
         directory = clientLink.rstrip('/').split('/')[-1]
@@ -245,7 +264,17 @@ def authenticate_gmail():
             token.write(creds.to_json())
 
     service = build('gmail', 'v1', credentials=creds)
-    return service
+    
+    # Get user's email address
+    try:
+        oauth2_service = build('oauth2', 'v2', credentials=creds)
+        user_info = oauth2_service.userinfo().get().execute()
+        user_email = user_info.get('email')
+        print(f"✅ Retrieved user email: {user_email}")
+        return service, user_email
+    except Exception as e:
+        print(f"❌ Failed to get user email: {e}")
+        return service, None
 
 def send_email(user_id, to_email, subject, body):
     creds = None

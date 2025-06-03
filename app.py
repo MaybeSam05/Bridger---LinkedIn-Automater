@@ -10,12 +10,18 @@ import models
 import json
 import base64
 from typing import Optional
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 api = FastAPI()
 
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server origin
+    allow_origins=[FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,8 +41,15 @@ class EmailRequest(BaseModel):
 
 usertext = ""
 
-def get_or_create_user(db: Session, linkedin_cookies: str = None) -> models.User:
-    """Get existing user by LinkedIn cookies or create a new one"""
+def get_or_create_user(db: Session, linkedin_cookies: str = None, user_email: str = None) -> models.User:
+    """Get existing user by email or LinkedIn cookies or create a new one"""
+    if user_email:
+        user = db.query(models.User).filter(models.User.email == user_email).first()
+        if user:
+            user.last_login = datetime.now()
+            db.commit()
+            return user
+            
     if linkedin_cookies:
         try:
             # Parse the JSON-stored cookies
@@ -49,11 +62,14 @@ def get_or_create_user(db: Session, linkedin_cookies: str = None) -> models.User
                 db.commit()
                 return user
         except (json.JSONDecodeError, KeyError):
-            # If the cookies are invalid, create a new user
             pass
     
+    if not user_email:
+        raise HTTPException(status_code=400, detail="Email address is required to create a new user")
+        
     # Create new user if not found
     user = models.User(
+        email=user_email,
         last_login=datetime.now(),
         is_active=True
     )
@@ -66,12 +82,12 @@ def create_user_session(db: Session, user: models.User) -> models.Session:
     """Create a new session for the user"""
     # Deactivate any existing active sessions
     db.query(models.Session).filter(
-        models.Session.user_id == user.user_id,
+        models.Session.user_email == user.email,
         models.Session.is_active == True
     ).update({"is_active": False})
     
     session = models.Session(
-        user_id=user.user_id,
+        user_email=user.email,
         started_at=datetime.now(),
         last_active=datetime.now(),
         is_active=True
@@ -89,18 +105,26 @@ def testing():
 def authenticate_gmail(db: Session = Depends(get_db)):
     try:
         # Get Gmail service and credentials
-        gmail_service = main.authenticate_gmail()
+        gmail_service, user_email = main.authenticate_gmail()
         
-        # Get or create user (we'll use the most recent user for now)
-        user = db.query(models.User).order_by(models.User.user_id.desc()).first()
+        if not user_email:
+            raise HTTPException(status_code=400, detail="Failed to get user email from Gmail")
+        
+        # Get or create user by email
+        user = db.query(models.User).filter(models.User.email == user_email).first()
         if not user:
             user = models.User(
+                email=user_email,
                 last_login=datetime.now(),
                 is_active=True
             )
             db.add(user)
-            db.commit()
-            db.refresh(user)
+        else:
+            # Update last_login for existing user
+            user.last_login = datetime.now()
+            
+        db.commit()
+        db.refresh(user)
         
         # Read and store the token
         try:
@@ -131,7 +155,7 @@ def authenticate_gmail(db: Session = Depends(get_db)):
             raise HTTPException(status_code=500, detail=f"Failed to store Gmail token: {str(e)}")
 
         if gmail_service:
-            return {"status": "authenticated"}
+            return {"status": "authenticated", "email": user_email}
         else:
             raise HTTPException(status_code=500, detail="Failed to authenticate Gmail service")
     except Exception as e:
@@ -144,29 +168,31 @@ def setup_profile(
     linkedin_cookies: Optional[str] = Cookie(None)
 ):
     try:
-        # Get or create user
-        user = get_or_create_user(db, linkedin_cookies)
+        # Get or create user - we need the email from the previous Gmail authentication
+        user = db.query(models.User).filter(
+            models.User.gmail_token.is_not(None)
+        ).order_by(models.User.last_login.desc()).first()
+        
+        if not user:
+            raise HTTPException(status_code=400, detail="Please authenticate with Gmail first")
+            
+        user = get_or_create_user(db, linkedin_cookies, user.email)
         
         # Create new session
         session = create_user_session(db, user)
         
         # Save cookies and get profile text
-        userTXT = main.saveCookies()  # This function now handles /me URL internally
-        
-        # Update user's LinkedIn cookies - convert pickle data to base64 string
-        with open("linkedin_cookies.pkl", "rb") as f:
-            cookies_data = f.read()
-            # Convert bytes to base64 string for JSON storage
-            cookies_base64 = base64.b64encode(cookies_data).decode('utf-8')
-            user.linkedin_cookies = json.dumps({
-                "cookie_data": cookies_base64,
-                "created_at": datetime.now().isoformat()
-            })
-            db.commit()
+        userTXT, cookies_json = main.saveCookies()
+        if not userTXT or not cookies_json:
+            raise HTTPException(status_code=500, detail="Failed to capture LinkedIn profile")
+            
+        # Update user's LinkedIn cookies directly from the saveCookies response
+        user.linkedin_cookies = cookies_json
+        db.commit()
 
         # Check if user already has a profile
         existing_profile = db.query(models.Profile).filter(
-            models.Profile.user_id == user.user_id,
+            models.Profile.user_email == user.email,
             models.Profile.is_user_profile == True
         ).first()
 
@@ -182,7 +208,7 @@ def setup_profile(
                 raw_ocr_text=userTXT,
                 cleaned_text=main.clean_ocr_text(userTXT),
                 is_user_profile=True,
-                user_id=user.user_id
+                user_email=user.email
             )
             db.add(profile)
         
@@ -190,7 +216,7 @@ def setup_profile(
 
         return {
             "status": "valid",
-            "user_id": user.user_id,
+            "email": user.email,
             "session_id": session.session_id
         }
     except Exception as e:
@@ -203,55 +229,58 @@ def find_connection(req: ConnectionRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid client URL")
 
     try:
-        # Get the most recent user (this should be replaced with proper user management)
-        user = db.query(models.User).order_by(models.User.user_id.desc()).first()
+        # Get the most recent authenticated user
+        user = db.query(models.User).filter(
+            models.User.gmail_token.is_not(None)
+        ).order_by(models.User.last_login.desc()).first()
+        
         if not user:
-            raise HTTPException(status_code=400, detail="No user found")
+            raise HTTPException(status_code=400, detail="Please authenticate with Gmail first")
+
+        if not user.linkedin_cookies:
+            raise HTTPException(status_code=400, detail="LinkedIn authentication required. Please set up your profile first.")
 
         # Get user's profile
         user_profile = db.query(models.Profile).filter(
-            models.Profile.user_id == user.user_id,
+            models.Profile.user_email == user.email,
             models.Profile.is_user_profile == True
         ).first()
         
         if not user_profile:
             raise HTTPException(status_code=400, detail="User profile not found. Please set up your profile first.")
         
-        # Process connection's profile
-        clientTXT = main.clientProcess(req.link)
-        
+        # Process connection's profile using cookies from database
+        clientTXT = main.clientProcess(req.link, user.linkedin_cookies)
+        if not clientTXT:
+            raise HTTPException(status_code=500, detail="Failed to process connection's profile")
+
+        # Get or create connection profile
+        connection_profile = db.query(models.Profile).filter(
+            models.Profile.user_email == user.email,
+            models.Profile.linkedin_url == req.link,
+            models.Profile.is_user_profile == False
+        ).first()
+
+        if connection_profile:
+            # Update existing profile
+            connection_profile.raw_ocr_text = clientTXT
+            connection_profile.cleaned_text = main.clean_ocr_text(clientTXT)
+            connection_profile.last_scraped = datetime.now()
+        else:
+            # Create new profile
+            connection_profile = models.Profile(
+                linkedin_url=req.link,
+                raw_ocr_text=clientTXT,
+                cleaned_text=main.clean_ocr_text(clientTXT),
+                is_user_profile=False,
+                user_email=user.email,
+                last_scraped=datetime.now()
+            )
+            db.add(connection_profile)
+
         try:
-            # Try to update existing profile first
-            result = db.query(models.Profile).filter(
-                models.Profile.user_id == user.user_id,
-                models.Profile.linkedin_url == req.link,
-                models.Profile.is_user_profile == False
-            ).update({
-                "raw_ocr_text": clientTXT,
-                "cleaned_text": main.clean_ocr_text(clientTXT),
-                "last_scraped": datetime.now()
-            })
-            
-            if result > 0:
-                # Profile was updated
-                db.commit()
-                connection_profile = db.query(models.Profile).filter(
-                    models.Profile.user_id == user.user_id,
-                    models.Profile.linkedin_url == req.link,
-                    models.Profile.is_user_profile == False
-                ).first()
-            else:
-                # No existing profile, create new one
-                connection_profile = models.Profile(
-                    linkedin_url=req.link,
-                    raw_ocr_text=clientTXT,
-                    cleaned_text=main.clean_ocr_text(clientTXT),
-                    is_user_profile=False,
-                    user_id=user.user_id
-                )
-                db.add(connection_profile)
-                db.commit()
-                db.refresh(connection_profile)
+            db.commit()
+            db.refresh(connection_profile)
 
             # Generate email with additional context
             address, subject, body = main.generate_email(
@@ -270,7 +299,7 @@ def find_connection(req: ConnectionRequest, db: Session = Depends(get_db)):
         except Exception as e:
             db.rollback()
             print(f"Database error: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to process connection profile: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to save connection profile: {str(e)}")
             
     except Exception as e:
         print(f"Error in find_connection: {e}")
@@ -278,20 +307,23 @@ def find_connection(req: ConnectionRequest, db: Session = Depends(get_db)):
 
 @api.post("/send_email")
 def send_email_endpoint(req: EmailRequest, db: Session = Depends(get_db)):
-    # Get the most recent user (this should be replaced with proper user management)
-    user = db.query(models.User).order_by(models.User.user_id.desc()).first()
+    # Get the most recent authenticated user
+    user = db.query(models.User).filter(
+        models.User.gmail_token.is_not(None)
+    ).order_by(models.User.last_login.desc()).first()
+    
     if not user:
-        raise HTTPException(status_code=400, detail="No user found")
+        raise HTTPException(status_code=400, detail="Please authenticate with Gmail first")
 
     # Get the most recent connection profile
     connection_profile = db.query(models.Profile).filter(
-        models.Profile.user_id == user.user_id,
+        models.Profile.user_email == user.email,
         models.Profile.is_user_profile == False
     ).order_by(models.Profile.profile_id.desc()).first()
 
     # Create email record
     email = models.Email(
-        user_id=user.user_id,
+        user_email=user.email,
         target_profile_id=connection_profile.profile_id if connection_profile else None,
         email_address=req.address,
         subject=req.subject,
@@ -316,14 +348,17 @@ def send_email_endpoint(req: EmailRequest, db: Session = Depends(get_db)):
 @api.get("/email_history")
 def get_email_history(db: Session = Depends(get_db)):
     try:
-        # Get the most recent user (this should be replaced with proper user management)
-        user = db.query(models.User).order_by(models.User.user_id.desc()).first()
+        # Get the most recent authenticated user
+        user = db.query(models.User).filter(
+            models.User.gmail_token.is_not(None)
+        ).order_by(models.User.last_login.desc()).first()
+        
         if not user:
-            raise HTTPException(status_code=400, detail="No user found")
+            raise HTTPException(status_code=400, detail="Please authenticate with Gmail first")
 
         # Get all emails for this user
         emails = db.query(models.Email).filter(
-            models.Email.user_id == user.user_id
+            models.Email.user_email == user.email
         ).order_by(models.Email.sent_at.desc()).all()
 
         # Convert to list of dictionaries
@@ -340,4 +375,23 @@ def get_email_history(db: Session = Depends(get_db)):
         return email_list
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.get("/check_linkedin_status")
+def check_linkedin_status(db: Session = Depends(get_db)):
+    try:
+        # Get the most recent authenticated user
+        user = db.query(models.User).filter(
+            models.User.gmail_token.is_not(None)
+        ).order_by(models.User.last_login.desc()).first()
+        
+        if not user:
+            return {"has_linkedin_cookies": False}
+
+        # Check if user has valid LinkedIn cookies
+        has_cookies = user.linkedin_cookies is not None and len(user.linkedin_cookies) > 0
+        
+        return {"has_linkedin_cookies": has_cookies}
+    except Exception as e:
+        print(f"Error checking LinkedIn status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
