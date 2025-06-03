@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Cookie
+from fastapi import FastAPI, HTTPException, Depends, Cookie, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import String
@@ -10,6 +10,7 @@ import models
 import json
 import base64
 from typing import Optional
+from rate_limiter import rate_limit_dependency
 
 api = FastAPI()
 
@@ -17,8 +18,17 @@ api.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # React dev server origin
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],  # Only allow GET and POST methods
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "Cookie"
+    ],
+    expose_headers=["Set-Cookie"],  # Allow frontend to read Set-Cookie header
+    max_age=3600  # Cache preflight requests for 1 hour
 )
 
 class SetupRequest(BaseModel):
@@ -96,7 +106,7 @@ def testing():
     return {"message": "API is running"}
 
 @api.post("/authenticate_gmail")
-def authenticate_gmail(db: Session = Depends(get_db)):
+async def authenticate_gmail(request: Request, db: Session = Depends(get_db), _: bool = Depends(rate_limit_dependency)):
     try:
         # Get Gmail service and credentials
         gmail_service, user_email = main.authenticate_gmail()
@@ -157,8 +167,10 @@ def authenticate_gmail(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api.post("/setup")
-def setup_profile(
+async def setup_profile(
+    request: Request,
     db: Session = Depends(get_db),
+    _: bool = Depends(rate_limit_dependency),
     linkedin_cookies: Optional[str] = Cookie(None)
 ):
     try:
@@ -218,7 +230,12 @@ def setup_profile(
         raise HTTPException(status_code=500, detail=str(e))
 
 @api.post("/find_connection")
-def find_connection(req: ConnectionRequest, db: Session = Depends(get_db)):
+async def find_connection(
+    request: Request,
+    req: ConnectionRequest,
+    db: Session = Depends(get_db),
+    _: bool = Depends(rate_limit_dependency)
+):
     if not main.validLink(req.link):
         raise HTTPException(status_code=400, detail="Invalid client URL")
 
@@ -300,7 +317,12 @@ def find_connection(req: ConnectionRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api.post("/send_email")
-def send_email_endpoint(req: EmailRequest, db: Session = Depends(get_db)):
+async def send_email_endpoint(
+    request: Request,
+    req: EmailRequest,
+    db: Session = Depends(get_db),
+    _: bool = Depends(rate_limit_dependency)
+):
     # Get the most recent authenticated user
     user = db.query(models.User).filter(
         models.User.gmail_token.is_not(None)
@@ -340,7 +362,11 @@ def send_email_endpoint(req: EmailRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to send email")
 
 @api.get("/email_history")
-def get_email_history(db: Session = Depends(get_db)):
+async def get_email_history(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: bool = Depends(rate_limit_dependency)
+):
     try:
         # Get the most recent authenticated user
         user = db.query(models.User).filter(
@@ -372,7 +398,11 @@ def get_email_history(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api.get("/check_linkedin_status")
-def check_linkedin_status(db: Session = Depends(get_db)):
+async def check_linkedin_status(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: bool = Depends(rate_limit_dependency)
+):
     try:
         # Get the most recent authenticated user
         user = db.query(models.User).filter(
