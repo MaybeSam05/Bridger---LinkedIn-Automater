@@ -27,6 +27,7 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 def saveCookies(): 
     driver = webdriver.Chrome()
     try:
+        print("Opening LinkedIn login page...")
         driver.get("https://www.linkedin.com/login")
         max_wait_time = 45
         
@@ -38,28 +39,195 @@ def saveCookies():
             print("✅ Successfully logged in!")
         except:
             print("⚠️ Login timeout reached")
+            return None
         
+        print("Saving cookies...")
         with open("linkedin_cookies.pkl", "wb") as file:
             pickle.dump(driver.get_cookies(), file)
         print("✅ Cookies saved to linkedin_cookies.pkl")
         
-        driver.close()
+        print("Navigating to your profile...")
+        # Navigate to user's profile using /me
+        driver.get("https://www.linkedin.com/in/me/")
+        time.sleep(2)  # Give time for redirect to actual profile
         
-        take_screenshot("https://www.linkedin.com/in/me/")
-        outputPath = stitch_screenshots("me")
+        # Get the actual profile URL after redirect
+        actual_profile_url = driver.current_url
+        print(f"✅ Found your profile at: {actual_profile_url}")
+        
+        # Create directory for screenshots
+        directory = "me"  # Use consistent directory name for user profile
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+        os.mkdir(directory)
+        
+        print("📸 Taking screenshots of your profile (this may take a few moments)...")
+        # Take screenshots
+        wait = WebDriverWait(driver, 10)
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+        # Set standard dimensions for consistent capture
+        STANDARD_WIDTH = 850  # Reduced width to exclude sidebar
+        STANDARD_HEIGHT = 800  # Standard viewport height
+        
+        # Set window size to our standard dimensions
+        driver.set_window_size(STANDARD_WIDTH, STANDARD_HEIGHT)
+        
+        # Hide the right sidebar and adjust layout using JavaScript
+        driver.execute_script("""
+            // Hide right rail/sidebar
+            const rightRail = document.querySelector('.right-rail');
+            if (rightRail) rightRail.style.display = 'none';
+            
+            // Hide any other right-side elements
+            const asideElements = document.querySelectorAll('aside');
+            asideElements.forEach(el => el.style.display = 'none');
+            
+            // Adjust main content width
+            const mainContent = document.querySelector('.body');
+            if (mainContent) mainContent.style.maxWidth = '800px';
+        """)
+        
+        # Wait for layout changes to take effect
+        time.sleep(1)
+        
+        # Get page height after setting standard width and adjusting layout
+        page_height = driver.execute_script("return document.body.scrollHeight")
+        total_screenshots = (page_height + STANDARD_HEIGHT - 1) // STANDARD_HEIGHT
+
+        scroll_position = 0
+        screenshot_num = 1
+
+        while scroll_position < page_height:
+            wait.until(lambda driver: driver.execute_script(
+                "return document.readyState"
+            ) == "complete")
+            
+            time.sleep(0.5)
+            
+            driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
+            print(f"📸 Capturing screenshot {screenshot_num}/{total_screenshots}")
+            scroll_position += STANDARD_HEIGHT
+            driver.execute_script(f"window.scrollTo(0, {scroll_position});")
+            screenshot_num += 1
+        
+        print("🔄 Processing screenshots...")
+        # Stitch screenshots and convert to text
+        outputPath = stitch_screenshots(directory)
+        print("✅ Screenshots processed")
+        
+        print("Converting profile to text...")
         txt = convertIMGtoTXT(outputPath)
+        print("✅ Profile data extracted")
         
         return txt
         
+    except Exception as e:
+        print(f"❌ Error in saveCookies: {e}")
+        return None
     finally:
-        driver.quit()
+        print("Closing browser...")
+        try:
+            driver.quit()
+        except:
+            pass
+        print("✅ Browser closed")
 
 def clientProcess(clientLink):
-    directory = take_screenshot(clientLink)
-    outputPath = stitch_screenshots(directory)
-    txt = convertIMGtoTXT(outputPath)
+    driver = webdriver.Chrome()
+    try:
+        print(f"Opening connection's profile: {clientLink}")
+        driver.get(clientLink)
+        
+        print("Loading saved cookies...")
+        # Load cookies
+        with open("linkedin_cookies.pkl", "rb") as file:
+            cookies = pickle.load(file)
+            for cookie in cookies:
+                driver.add_cookie(cookie)
+        
+        # Refresh to apply cookies
+        driver.refresh()
+        time.sleep(2)  # Give time for page to load
+        print("✅ Cookies loaded")
+        
+        # Create directory for screenshots
+        directory = clientLink.rstrip('/').split('/')[-1]
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+        os.mkdir(directory)
+        
+        print("📸 Taking screenshots of connection's profile (this may take a few moments)...")
+        # Take screenshots
+        wait = WebDriverWait(driver, 10)
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-    return txt
+        # Set standard dimensions for consistent capture
+        STANDARD_WIDTH = 850  # Reduced width to exclude sidebar
+        STANDARD_HEIGHT = 800  # Standard viewport height
+        
+        # Set window size to our standard dimensions
+        driver.set_window_size(STANDARD_WIDTH, STANDARD_HEIGHT)
+        
+        # Hide the right sidebar and adjust layout using JavaScript
+        driver.execute_script("""
+            // Hide right rail/sidebar
+            const rightRail = document.querySelector('.right-rail');
+            if (rightRail) rightRail.style.display = 'none';
+            
+            // Hide any other right-side elements
+            const asideElements = document.querySelectorAll('aside');
+            asideElements.forEach(el => el.style.display = 'none');
+            
+            // Adjust main content width
+            const mainContent = document.querySelector('.body');
+            if (mainContent) mainContent.style.maxWidth = '800px';
+        """)
+        
+        # Wait for layout changes to take effect
+        time.sleep(1)
+        
+        # Get page height after setting standard width and adjusting layout
+        page_height = driver.execute_script("return document.body.scrollHeight")
+        total_screenshots = (page_height + STANDARD_HEIGHT - 1) // STANDARD_HEIGHT
+
+        scroll_position = 0
+        screenshot_num = 1
+
+        while scroll_position < page_height:
+            wait.until(lambda driver: driver.execute_script(
+                "return document.readyState"
+            ) == "complete")
+            
+            time.sleep(0.5)
+            
+            driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
+            print(f"📸 Capturing screenshot {screenshot_num}/{total_screenshots}")
+            scroll_position += STANDARD_HEIGHT
+            driver.execute_script(f"window.scrollTo(0, {scroll_position});")
+            screenshot_num += 1
+        
+        print("🔄 Processing screenshots...")
+        # Stitch screenshots and convert to text
+        outputPath = stitch_screenshots(directory)
+        print("✅ Screenshots processed")
+        
+        print("Converting profile to text...")
+        txt = convertIMGtoTXT(outputPath)
+        print("✅ Profile data extracted")
+        
+        return txt
+        
+    except Exception as e:
+        print(f"❌ Error in clientProcess: {e}")
+        return None
+    finally:
+        print("Closing browser...")
+        try:
+            driver.quit()
+        except:
+            pass
+        print("✅ Browser closed")
 
 def authenticate_gmail():
     creds = None
@@ -125,8 +293,15 @@ def stitch_screenshots(folder_name):
     for file in files:
         img_path = os.path.join(folder_path, file)
         img = Image.open(img_path)
-        images.append(img)
+        
+        # Calculate the width to keep (70% of original width)
+        crop_width = int(img.width * 0.7)
+        
+        # Crop the image to keep only the left 70%
+        cropped_img = img.crop((0, 0, crop_width, img.height))
+        images.append(cropped_img)
 
+    # Get dimensions for the stitched image
     widths, heights = zip(*(img.size for img in images))
     total_height = sum(heights)
     max_width = max(widths)
@@ -186,6 +361,11 @@ def take_screenshot(employee_link):
         driver.quit()
 
 def structure_profile_data(text):
+    print("\nStructuring profile data...")
+    if not text:
+        print("❌ No text provided to structure!")
+        return "Error: No profile text to structure"
+        
     location_pattern = re.compile(r'(?i)area|region|location')
     
     sections = {
@@ -206,6 +386,8 @@ def structure_profile_data(text):
     }
     
     lines = [line.strip() for line in text.split('\n') if line.strip()]
+    print(f"Found {len(lines)} non-empty lines to process")
+    
     current_section = None
     
     for i, line in enumerate(lines):
@@ -213,15 +395,18 @@ def structure_profile_data(text):
         
         if not sections["name"] and i < 5 and len(line.split()) <= 4:
             sections["name"] = line
+            print(f"Found name: {line}")
             continue
             
         if not sections["headline"] and i < 7:
             if any(keyword in line_lower for keyword in {"student", "engineer", "developer"}):
                 sections["headline"] = line
+                print(f"Found headline: {line}")
                 continue
         
         if not sections["location"] and location_pattern.search(line_lower):
             sections["location"] = line
+            print(f"Found location: {line}")
             continue
             
         section_found = False
@@ -229,13 +414,16 @@ def structure_profile_data(text):
             if any(marker in line_lower for marker in markers):
                 current_section = section
                 section_found = True
+                print(f"\nFound {section} section")
                 break
                 
         if not section_found and current_section and len(line) > 3:
             sections[current_section].add(line)
     
+    # Convert sets to lists
     for section in ["education", "experience", "skills", "about"]:
         sections[section] = list(sections[section])
+        print(f"\n{section.capitalize()} items found: {len(sections[section])}")
     
     formatted_text = [
         f"Name: {sections['name']}",
@@ -255,12 +443,25 @@ def structure_profile_data(text):
         '\n'.join('- ' + skill for skill in sections['skills']) if sections['skills'] else 'Not specified'
     ]
     
-    return '\n'.join(formatted_text)
+    result = '\n'.join(formatted_text)
+    print("\n✅ Profile structured successfully")
+    print("\n📄 Structured Profile Preview:")
+    print("-" * 50)
+    preview_lines = result.split('\n')[:7]  # Show first 7 lines as preview
+    print('\n'.join(preview_lines))
+    print("...")
+    print("-" * 50)
+    
+    return result
 
-def generate_email(userTXT, clientTXT):
+def generate_email(userTXT, clientTXT, additional_context=""):
     try:
         structured_user = structure_profile_data(userTXT)
         structured_client = structure_profile_data(clientTXT)
+        
+        context_prompt = ""
+        if additional_context:
+            context_prompt = f"\nAdditional Context Provided:\n{additional_context}\n\nPlease incorporate this context naturally into the email if relevant."
         
         messages = [
             {"role": "system", "content": "You're helping draft an email for a 15-minute coffee chat."},
@@ -271,7 +472,7 @@ My LinkedIn Profile:
 {structured_user}
 
 Their LinkedIn Profile:
-{structured_client}
+{structured_client}{context_prompt}
 
 Your task is to:
 1. Analyze both profiles
@@ -280,7 +481,7 @@ Your task is to:
 4. Be polite and authentic
 5. Mention connections early to establish rapport
 6. Keep it under 150 words
-7. Only use information from the profiles
+7. Only use information from the profiles and provided context
 
 Return in this format ONLY:
 email//subject//body"""}
@@ -320,12 +521,46 @@ def validLink(url):
     pattern = re.compile(r"^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?$")
     return bool(pattern.match(url))
 
-def clean_ocr_text(text):
-    return text[150:-700] if len(text) > 850 else ''
-
 def convertIMGtoTXT(image_path):
+    print("\nStarting OCR processing...")
     reader = easyocr.Reader(['en'], gpu=False) 
     results = reader.readtext(image_path)
+    
+    if not results:
+        print("❌ No text was detected in the image!")
+        return ''
+        
     all_text = ' '.join(result[1] for result in results)
+    
+    # Print a sample of the detected text
+    sample_length = 200
+    text_sample = all_text[:sample_length] + "..." if len(all_text) > sample_length else all_text
+    print("\n📄 Sample of detected text:")
+    print("-" * 50)
+    print(text_sample)
+    print("-" * 50)
+    
     cleaned_text = clean_ocr_text(all_text)
+    
+    if not cleaned_text:
+        print("⚠️ Warning: Cleaned text is empty!")
+    else:
+        print(f"✅ Successfully extracted {len(cleaned_text)} characters of text")
+        
     return cleaned_text
+
+def clean_ocr_text(text):
+    # Only clean the text if it's longer than 850 characters
+    if len(text) > 850:
+        # Keep track of original and cleaned lengths
+        original_length = len(text)
+        cleaned = text[150:-700]
+        cleaned_length = len(cleaned)
+        print(f"\nText cleaning stats:")
+        print(f"Original length: {original_length} characters")
+        print(f"Cleaned length: {cleaned_length} characters")
+        print(f"Removed {original_length - cleaned_length} characters")
+        return cleaned
+    else:
+        print(f"\n⚠️ Text is too short ({len(text)} characters) to clean properly")
+        return text

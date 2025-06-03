@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 const UserProfile = () => {
-  const [profileURL, setProfileURL] = useState("");
   const [done, setDone] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,7 +27,7 @@ const UserProfile = () => {
     try {
       const response = await axios.post(
         "http://127.0.0.1:8000/setup",
-        { link: profileURL },
+        {},  // No need to send link anymore
         { withCredentials: true } // Important: This enables cookie handling
       );
 
@@ -54,9 +53,19 @@ const UserProfile = () => {
     return (
       <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow border">
         <h2 className="text-xl font-semibold mb-4">Your Profile</h2>
-        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+        <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
           <p className="text-green-700">✅ Profile setup complete!</p>
           <p className="text-sm text-green-600 mt-1">You can now search for connections.</p>
+        </div>
+        <div className="mt-4">
+          <button
+            onClick={() => {
+              setDone(false);
+            }}
+            className="text-[#0F689C] hover:text-blue-700 underline text-sm"
+          >
+            Reset Profile or Update LinkedIn Cookies
+          </button>
         </div>
       </div>
     );
@@ -65,36 +74,33 @@ const UserProfile = () => {
   return (
     <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow border">
       <h2 className="text-xl font-semibold mb-4">Setup Your Profile</h2>
-      <div className="flex flex-col sm:flex-row gap-4">
-        <input
-          type="text"
-          value={profileURL}
-          onChange={(e) => setProfileURL(e.target.value)}
-          placeholder="Enter Your LinkedIn Profile URL"
-          className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      <div className="space-y-4">
+        <p className="text-gray-600">
+          Click the button below to log in to LinkedIn. You'll be redirected to LinkedIn's login page.
+          After logging in, your profile will be automatically set up.
+        </p>
         <button
           onClick={runScript}
           disabled={loading}
-          className={`bg-[#0F689C] text-white px-6 py-2 rounded-md font-medium transition ${
+          className={`w-full sm:w-auto bg-[#0F689C] text-white px-6 py-2 rounded-md font-medium transition ${
             loading ? "opacity-50 cursor-not-allowed" : "hover:bg-[#004182]"
           }`}
         >
-          {loading ? "Setting up..." : "Get Started"}
+          {loading ? "Setting up..." : "Login with LinkedIn"}
         </button>
+        {error && (
+          <p className="text-red-500">⚠️ Error setting up profile. Please try again.</p>
+        )}
+        <p className="text-xl">
+          {loading
+            ? "⏳ Setting up your profile..."
+            : error
+            ? "⚠️ Error!"
+            : done
+            ? "✅ Profile setup complete!"
+            : "❌ Profile not set up yet."}
+        </p>
       </div>
-      {error && (
-        <p className="text-red-500 mt-2">⚠️ Error setting up profile. Please try again.</p>
-      )}
-      <p className="text-xl mt-6">
-        {loading
-          ? "⏳ Setting up your profile..."
-          : error
-          ? "⚠️ Error!"
-          : done
-          ? "✅ Profile setup complete!"
-          : "❌ Profile not set up yet."}
-      </p>
     </div>
   );
 };

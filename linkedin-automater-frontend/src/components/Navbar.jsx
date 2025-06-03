@@ -12,28 +12,32 @@ const Navbar = () => {
   
   const handleGetStarted = async () => {
     try {
+      // First authenticate with Gmail
       const res = await axios.post("http://127.0.0.1:8000/authenticate_gmail");
-      console.log("API response:", res);
+      console.log("Gmail authentication response:", res);
+      
       if (res.data.status === "authenticated") {
+        // After successful Gmail authentication, navigate to the tool page
         navigate("/tool");
       } else {
-        alert("Authentication failed");
+        console.error("Gmail authentication failed");
+        alert("Failed to authenticate with Gmail. Please try again.");
       }
     } catch (error) {
       console.error("Authentication error:", error);
-      alert("Something went wrong during authentication");
+      alert("Something went wrong during authentication. Please try again.");
     }
   };
 
   return (
-    <header className = { banner }>
-      
+    <header className={banner}>
       <div className="flex items-center">
         <Link to="/">
           <img
             src="/finaldesignBG.png"
             alt="Bridger Logo"
-            className= { img } style={{ height: "70px", width: "auto" }}
+            className={img}
+            style={{ height: "70px", width: "auto" }}
           />
         </Link>
       </div>
@@ -41,15 +45,18 @@ const Navbar = () => {
       {/* Buttons on the right */}
       <div className="flex items-center gap-4">
         <Link to="/confirm"> 
-        <button className= { logInButton } style = {{ backgroundColor: '#A3A3A3'}} >
-          Learn More
-        </button>
+          <button className={logInButton} style={{ backgroundColor: '#A3A3A3' }}>
+            Learn More
+          </button>
         </Link>
-        <button className= { getStartedButton } style={{ backgroundColor: '#0F689C' }} onClick={handleGetStarted}>
+        <button 
+          className={getStartedButton} 
+          style={{ backgroundColor: '#0F689C' }} 
+          onClick={handleGetStarted}
+        >
           Get Started
         </button>
       </div>
-
     </header>
   );
 };
