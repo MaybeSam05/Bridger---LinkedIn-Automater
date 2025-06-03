@@ -10,18 +10,12 @@ import models
 import json
 import base64
 from typing import Optional
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 api = FastAPI()
 
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL],
+    allow_origins=["http://localhost:3000"],  # React dev server origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

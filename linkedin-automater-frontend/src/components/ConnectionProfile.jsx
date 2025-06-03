@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axiosInstance from "../config/axios";
+import axios from "axios";
 
 const MAX_CONTEXT_LENGTH = 150;
 
@@ -33,7 +33,7 @@ const ConnectionProfile = ({ setEmailData }) => {
     setShowConfirmation(false);
 
     try {
-      const response = await axiosInstance.post("/find_connection", {
+      const response = await axios.post("http://127.0.0.1:8000/find_connection", {
         link: clientURL,
         additional_context: context
       });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axiosInstance from "../config/axios";
+import axios from "axios";
 
 const ComposeEmail = ({ address, subject, body }) => {
   const [editedAddress, setEditedAddress] = useState(address || "");
@@ -37,7 +37,7 @@ const ComposeEmail = ({ address, subject, body }) => {
     setShowConfirmation(false);
     
     try {
-      await axiosInstance.post("/send_email", {
+      await axios.post("http://127.0.0.1:8000/send_email", {
         address: editedAddress,
         subject: editedSubject,
         body: editedBody

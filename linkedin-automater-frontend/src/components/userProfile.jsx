@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axiosInstance from "../config/axios";
+import axios from "axios";
 
 const UserProfile = () => {
   const [done, setDone] = useState(false);
@@ -10,7 +10,7 @@ const UserProfile = () => {
   useEffect(() => {
     const checkUserStatus = async () => {
       try {
-        const response = await axiosInstance.get("/check_linkedin_status");
+        const response = await axios.get("http://127.0.0.1:8000/check_linkedin_status");
         setDone(response.data.has_linkedin_cookies);
       } catch (err) {
         console.error("Error checking LinkedIn status:", err);
@@ -27,8 +27,8 @@ const UserProfile = () => {
     setError(false);
 
     try {
-      const response = await axiosInstance.post(
-        "/setup",
+      const response = await axios.post(
+        "http://127.0.0.1:8000/setup",
         {},
         { withCredentials: true } // Important: This enables cookie handling
       );
