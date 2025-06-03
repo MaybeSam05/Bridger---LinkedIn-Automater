@@ -1,43 +1,26 @@
-# 🚀 LinkedIn Automater
+# Bridger
 
-An intelligent automation tool that helps you connect with LinkedIn professionals by generating personalized connection emails using AI. Built with Python, React, and GPT-4.
+A professional networking tool that helps you build meaningful connections on LinkedIn by automating personalized connection requests.
 
-## ✨ Features
+## Features
 
-- 🔐 **Secure Authentication**: Uses OAuth2 for secure Gmail integration
-- 🤖 **AI-Powered Emails**: Generates personalized connection requests using GPT-4
-- 📸 **Profile Analysis**: Automatically captures and analyzes LinkedIn profiles
-- 🎯 **Smart Matching**: Identifies genuine connection points between profiles
-- 🌐 **Modern Web Interface**: Clean, responsive React frontend
-- 🔄 **Real-time Processing**: Live updates on email generation and sending
-- 📱 **Mobile Responsive**: Works seamlessly on all devices
+- OAuth integration with Gmail for secure email sending
+- LinkedIn profile analysis using OCR technology
+- AI-powered personalized email generation
+- Modern React frontend with Tailwind CSS
+- FastAPI backend with rate limiting and CORS security
+- SQLAlchemy database integration
+- Real-time profile processing
+- Email history tracking
 
-## 🛠️ Tech Stack
-
-### Backend
-
-- FastAPI (Python web framework)
-- Selenium (Web automation)
-- EasyOCR (Optical Character Recognition)
-- OpenAI GPT-4 (AI text generation)
-- Gmail API (Email sending)
-
-### Frontend
-
-- React.js
-- Tailwind CSS
-- Axios (API calls)
-
-## 📋 Prerequisites
+## Prerequisites
 
 - Python 3.8+
 - Node.js 14+
-- Chrome Browser
-- Gmail Account
-- OpenAI API Key
-- LinkedIn Account
+- Gmail API credentials
+- OpenAI API key
 
-## 🚀 Quick Start
+## Installation
 
 ### Backend Setup
 
@@ -48,7 +31,7 @@ git clone https://github.com/yourusername/LinkedInAutomater.git
 cd LinkedInAutomater
 ```
 
-2. Create and activate virtual environment:
+2. Create and activate a virtual environment:
 
 ```bash
 python -m venv venv
@@ -70,19 +53,18 @@ cp .env.example .env
 Edit `.env` and add your:
 
 - OpenAI API key
-- Other configuration variables
+- Gmail API credentials
+- Database configuration
 
-5. Set up Gmail OAuth:
+5. Initialize the database:
 
-- Go to Google Cloud Console
-- Create a new project
-- Enable Gmail API
-- Create OAuth 2.0 credentials
-- Download credentials and save as `credentials.json` in project root
+```bash
+python init_db.py
+```
 
 ### Frontend Setup
 
-1. Navigate to frontend directory:
+1. Navigate to the frontend directory:
 
 ```bash
 cd linkedin-automater-frontend
@@ -94,13 +76,7 @@ cd linkedin-automater-frontend
 npm install
 ```
 
-3. Start development server:
-
-```bash
-npm start
-```
-
-## 🎮 Usage
+## Running the Application
 
 1. Start the backend server:
 
@@ -108,41 +84,52 @@ npm start
 uvicorn app:api --reload
 ```
 
-2. Start the frontend (in a new terminal):
+2. Start the frontend development server:
 
 ```bash
 cd linkedin-automater-frontend
 npm start
 ```
 
-3. Open your browser to `http://localhost:3000`
+3. Access the application at `http://localhost:3000`
 
-4. First-time setup:
+## Usage
 
-   - Log in to your LinkedIn account when prompted
-   - Authenticate with Gmail
-   - Your credentials will be saved for future use
+1. Log in with your Gmail account
+2. Set up your LinkedIn profile
+3. Enter the LinkedIn profile URL of someone you'd like to connect with
+4. Add any additional context about your connection
+5. Review and send the generated email
 
-5. To connect with someone:
-   - Paste their LinkedIn profile URL
-   - The tool will analyze both profiles
-   - Review and send the generated email
+## Security Features
 
-## 🔒 Security
+- Rate limiting on all endpoints
+- CORS protection
+- OAuth 2.0 authentication
+- Secure cookie handling
+- Input validation
+- Error handling
 
-- No passwords are stored
-- Uses secure OAuth2 for Gmail
-- Cookies are stored locally
-- API keys are environment variables
-- All sensitive data is encrypted
+## API Endpoints
 
-## 🙏 Acknowledgments
+- `POST /authenticate_gmail`: Gmail authentication
+- `POST /setup`: LinkedIn profile setup
+- `POST /find_connection`: Process connection's profile
+- `POST /send_email`: Send connection request email
+- `GET /email_history`: View sent emails
+- `GET /check_linkedin_status`: Check LinkedIn authentication status
 
-- OpenAI for GPT-4 API
-- Google for Gmail API
-- LinkedIn for inspiration
-- All contributors and users
+## Rate Limits
 
-## ⚠️ Disclaimer
+- Authentication endpoints: 5 requests per 5 minutes
+- Profile analysis: 10 requests per 5 minutes
+- Email sending: 10 requests per 5 minutes
+- Read-only endpoints: 30 requests per minute
 
-This tool is for educational purposes only. Please use responsibly and in accordance with LinkedIn's terms of service.
+## Acknowledgments
+
+- OpenAI for GPT API
+- EasyOCR for text extraction
+- FastAPI framework
+- React and Tailwind CSS
+- Gmail API
