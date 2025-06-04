@@ -16,9 +16,14 @@ api = FastAPI()
 
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server origin
+    allow_origins=[
+        "https://bridger-8u91muc0s-samarth-vermas-projects-ac343338.vercel.app",
+        "https://www.bridger-8u91muc0s-samarth-vermas-projects-ac343338.vercel.app",
+        "http://localhost:3000",
+        #"http://127.0.0.1:3000"
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],  # Only allow GET and POST methods
+    allow_methods=["GET", "POST"],
     allow_headers=[
         "Content-Type",
         "Authorization",
@@ -27,8 +32,8 @@ api.add_middleware(
         "X-Requested-With",
         "Cookie"
     ],
-    expose_headers=["Set-Cookie"],  # Allow frontend to read Set-Cookie header
-    max_age=3600  # Cache preflight requests for 1 hour
+    expose_headers=["Set-Cookie"],
+    max_age=3600
 )
 
 class SetupRequest(BaseModel):
