@@ -1,6 +1,6 @@
 import React from "react";
-import Confirmation from "../components/Confirmation";
-import Header from "../components/Header";
+import Confirmation from "./Confirmation";
+import Header from "./Header";
 
 function Confirm() {
     return (

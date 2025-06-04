@@ -1,7 +1,7 @@
-import Tool from './pages/tool.jsx';
-import Login from './pages/login.jsx';
-import Confirm from './pages/confirm.jsx';
-import NotFound from './pages/error.jsx';
+import Tool from './components/tool.jsx';
+import Login from './components/login.jsx';
+import Confirm from './components/confirm.jsx';
+import NotFound from './components/error.jsx';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { StrictMode } from 'react';
 

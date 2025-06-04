@@ -1,7 +1,7 @@
 import React from 'react';
-import Navbar from '../components/Navbar';
-import FeaturesSection from '../components/FeaturesSection';
-import Hero from '../components/Hero';
+import Navbar from './Navbar';
+import FeaturesSection from './FeaturesSection';
+import Hero from './Hero';
 
 function Login() {
   return (

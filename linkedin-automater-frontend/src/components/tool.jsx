@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import Header from '../components/Header';
-import UserProfile from '../components/UserProfile';
-import ConnectionProfile from '../components/ConnectionProfile';
-import ComposeEmail from '../components/ComposeEmail';
-import EmailHistory from '../components/EmailHistory';
+import Header from './Header';
+import UserProfile from './UserProfile';
+import ConnectionProfile from './ConnectionProfile';
+import ComposeEmail from './ComposeEmail';
+import EmailHistory from './EmailHistory';
 
 function Tool() {
   const [emailData, setEmailData] = useState(null); // holds { address, subject, body }

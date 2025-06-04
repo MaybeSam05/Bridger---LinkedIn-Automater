@@ -1,6 +1,6 @@
 import React from "react";
-import Header from "../components/Header";
-import NotFoundPage from "../components/NotFoundPage";
+import Header from "./Header";
+import NotFoundPage from "./NotFoundPage";
 
 function Error() {
     return (
