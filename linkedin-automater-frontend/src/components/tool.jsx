@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Header from './Header';
-import UserProfile from './UserProfile';
+import UserProfile from './userProfile';
 import ConnectionProfile from './ConnectionProfile';
 import ComposeEmail from './ComposeEmail';
 import EmailHistory from './EmailHistory';
