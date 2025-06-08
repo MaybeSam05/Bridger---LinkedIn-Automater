@@ -19,6 +19,7 @@ api.add_middleware(
     allow_origins=[
         "https://bridger-8u91muc0s-samarth-vermas-projects-ac343338.vercel.app",
         "https://www.bridger-8u91muc0s-samarth-vermas-projects-ac343338.vercel.app",
+        "https://bridger-eight.vercel.app",
         "http://localhost:3000",
         #"http://127.0.0.1:3000"
     ],
