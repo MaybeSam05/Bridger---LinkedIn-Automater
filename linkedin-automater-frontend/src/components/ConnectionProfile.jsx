@@ -33,7 +33,7 @@ const ConnectionProfile = ({ setEmailData }) => {
     setShowConfirmation(false);
 
     try {
-      const response = await axios.post("http://127.0.0.1:8000/find_connection", {
+      const response = await axios.post("https://bridger.onrender.com/find_connection", {
         link: clientURL,
         additional_context: context
       });

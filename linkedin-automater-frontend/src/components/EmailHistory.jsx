@@ -13,7 +13,7 @@ const EmailHistory = () => {
   const fetchEmails = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://127.0.0.1:8000/email_history');
+      const response = await axios.get('https://bridger.onrender.com/email_history');
       setEmails(response.data);
       setError(null);
     } catch (err) {

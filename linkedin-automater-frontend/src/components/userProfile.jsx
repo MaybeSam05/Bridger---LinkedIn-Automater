@@ -10,7 +10,7 @@ const UserProfile = () => {
   useEffect(() => {
     const checkUserStatus = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/check_linkedin_status");
+        const response = await axios.get("https://bridger.onrender.com/check_linkedin_status");
         setDone(response.data.has_linkedin_cookies);
       } catch (err) {
         console.error("Error checking LinkedIn status:", err);
@@ -28,7 +28,7 @@ const UserProfile = () => {
 
     try {
       const response = await axios.post(
-        "http://127.0.0.1:8000/setup",
+        "https://bridger.onrender.com/setup",
         {},
         { withCredentials: true } // Important: This enables cookie handling
       );

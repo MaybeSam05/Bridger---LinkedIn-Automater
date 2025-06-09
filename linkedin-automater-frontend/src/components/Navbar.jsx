@@ -13,7 +13,7 @@ const Navbar = () => {
   const handleGetStarted = async () => {
     try {
       // First authenticate with Gmail
-      const res = await axios.post("http://127.0.0.1:8000/authenticate_gmail");
+      const res = await axios.post("https://bridger.onrender.com/authenticate_gmail");
       console.log("Gmail authentication response:", res);
       
       if (res.data.status === "authenticated") {
