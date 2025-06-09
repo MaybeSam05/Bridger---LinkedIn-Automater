@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: linkedin-automater
+    env: docker
+    region: oregon # or choose your preferred region
+    plan: starter # or choose your preferred plan
+    branch: main # or your deployment branch
+    dockerfilePath: ./Dockerfile
+    numInstances: 1
+    healthCheckPath: /
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false # will be set manually in Render dashboard
+      - key: SQLALCHEMY_DATABASE_URL
+        sync: false # will be set manually in Render dashboard
+      - key: PORT
+        value: 8000
+      - key: HOST
+        value: 0.0.0.0
+      - key: ENVIRONMENT
+        value: production
