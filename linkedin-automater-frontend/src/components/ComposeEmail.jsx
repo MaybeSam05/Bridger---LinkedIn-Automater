@@ -37,7 +37,7 @@ const ComposeEmail = ({ address, subject, body }) => {
     setShowConfirmation(false);
     
     try {
-      await axios.post("https://bridger.onrender.com/send_email", {
+      await axios.post("http://127.0.0.1:8000/send_email", {
         address: editedAddress,
         subject: editedSubject,
         body: editedBody
@@ -59,9 +59,9 @@ const ComposeEmail = ({ address, subject, body }) => {
     <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow border relative">
       {isSending && (
         <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0F689C] mb-4"></div>
-            <p className="text-lg font-medium text-gray-700">Sending your email...</p>
+          <div className="flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0F689C]"></div>
+            <p className="text-lg font-medium text-gray-700 mt-4">Sending your email...</p>
             <p className="text-sm text-gray-500 mt-2">Please wait</p>
           </div>
         </div>

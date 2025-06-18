@@ -36,18 +36,22 @@ const LearnMore = () => {
           <div className="space-y-4">
             <div className="flex items-start">
               <span className="bg-[#0F689C] text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 mt-1">1</span>
-              <p className="text-gray-700">Log in with your LinkedIn and Gmail accounts (one-time setup)</p>
+              <p className="text-gray-700">Log in with your Gmail accounts</p>
             </div>
             <div className="flex items-start">
               <span className="bg-[#0F689C] text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 mt-1">2</span>
-              <p className="text-gray-700">Paste the LinkedIn profile URL of someone you'd like to connect with</p>
+              <p className="text-gray-700">Paste your LinkedIn profile URL</p>
             </div>
             <div className="flex items-start">
               <span className="bg-[#0F689C] text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 mt-1">3</span>
-              <p className="text-gray-700">Bridger analyzes both profiles and identifies meaningful connections</p>
+              <p className="text-gray-700">Paste the LinkedIn profile URL of someone you'd like to connect with</p>
             </div>
             <div className="flex items-start">
               <span className="bg-[#0F689C] text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 mt-1">4</span>
+              <p className="text-gray-700">Bridger analyzes both profiles and identifies meaningful connections</p>
+            </div>
+            <div className="flex items-start">
+              <span className="bg-[#0F689C] text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 mt-1">5</span>
               <p className="text-gray-700">Review and send the personalized connection email</p>
             </div>
           </div>

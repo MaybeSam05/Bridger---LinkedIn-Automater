@@ -5,13 +5,14 @@ const UserProfile = () => {
   const [done, setDone] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [linkedinUrl, setLinkedinUrl] = useState("");
 
   // Check LinkedIn authentication status on component mount
   useEffect(() => {
     const checkUserStatus = async () => {
       try {
-        const response = await axios.get("https://bridger.onrender.com/check_linkedin_status");
-        setDone(response.data.has_linkedin_cookies);
+        const response = await axios.get("http://127.0.0.1:8000/check_linkedin_status");
+        setDone(response.data.has_user_profile);
       } catch (err) {
         console.error("Error checking LinkedIn status:", err);
         setError(true);
@@ -28,9 +29,9 @@ const UserProfile = () => {
 
     try {
       const response = await axios.post(
-        "https://bridger.onrender.com/setup",
-        {},
-        { withCredentials: true } // Important: This enables cookie handling
+        "http://127.0.0.1:8000/setup",
+        { link: linkedinUrl },
+        { withCredentials: true }
       );
 
       if (response.data.status === "valid") {
@@ -71,18 +72,27 @@ const UserProfile = () => {
       <h2 className="text-xl font-semibold mb-4">Setup Your Profile</h2>
       <div className="space-y-4">
         <p className="text-gray-600">
-          Click the button below to log in to LinkedIn. You'll be redirected to LinkedIn's login page.
-          After logging in, your profile will be automatically set up.
+          Please enter the link to your personal LinkedIn profile below. This will allow us to set up your profile for future connection requests.
         </p>
-        <button
-          onClick={runScript}
-          disabled={loading}
-          className={`w-full sm:w-auto bg-[#0F689C] text-white px-6 py-2 rounded-md font-medium transition ${
-            loading ? "opacity-50 cursor-not-allowed" : "hover:bg-[#004182]"
-          }`}
-        >
-          {loading ? "Setting up..." : "Login with LinkedIn"}
-        </button>
+        <div className="flex w-full gap-4">
+          <input
+            type="text"
+            placeholder="https://www.linkedin.com/in/your-profile"
+            value={linkedinUrl}
+            onChange={e => setLinkedinUrl(e.target.value)}
+            className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            disabled={loading}
+          />
+          <button
+            onClick={runScript}
+            disabled={loading || !linkedinUrl}
+            className={`bg-[#0F689C] text-white px-6 py-2 rounded-md font-medium transition ${
+              loading || !linkedinUrl ? "opacity-50 cursor-not-allowed" : "hover:bg-[#004182]"
+            }`}
+          >
+            {loading ? "Setting up..." : "Submit"}
+          </button>
+        </div>
         {error && (
           <p className="text-red-500">⚠️ Error setting up profile. Please try again.</p>
         )}

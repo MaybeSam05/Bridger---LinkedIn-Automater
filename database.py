@@ -25,5 +25,5 @@ def get_db():
 
 # Function to create all tables
 def init_db():
-    from models import User, Profile, Email, Session  # Import models here to avoid circular imports
+    from models import User, Profile, Email, Session, LinkedInCookies  # Import models here to avoid circular imports
     Base.metadata.create_all(bind=engine) 

@@ -20,6 +20,7 @@ import shutil
 import sys
 import json
 from datetime import datetime
+from database import SessionLocal
 
 load_dotenv()
 
@@ -30,165 +31,72 @@ SCOPES = [
     'openid'
 ]
 
-def saveCookies(): 
-    driver = webdriver.Chrome()
+def clientProcess(clientLink):
+    driver = None
+    directory = None
     try:
+        chrome_options = webdriver.ChromeOptions()
+        chrome_options.add_argument('--headless=new')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        driver = webdriver.Chrome(options=chrome_options)
         print("Opening LinkedIn login page...")
         driver.get("https://www.linkedin.com/login")
         max_wait_time = 45
         
-        print("Please log in to LinkedIn...")
-        
-        wait = WebDriverWait(driver, max_wait_time)
+        username = os.getenv("USERNAME")
+        password = os.getenv("PASSWORD")
+       
+        print("Logging in automatically...")
         try:
+            username_field = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "username"))
+            )
+            username_field.send_keys(username)
+            
+            password_field = driver.find_element(By.ID, "password")
+            password_field.send_keys(password)
+            
+            login_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+            login_button.click()
+            
+            wait = WebDriverWait(driver, max_wait_time)
             wait.until(lambda driver: "linkedin.com/feed" in driver.current_url)
             print("✅ Successfully logged in!")
-        except:
-            print("⚠️ Login timeout reached")
-            return None, None
+        except Exception as e:
+            print(f"❌ Login failed: {str(e)}")
+            if driver:
+                driver.quit()
+            return None
         
-        print("Getting cookies...")
-        cookies = driver.get_cookies()
-        cookies_bytes = pickle.dumps(cookies)
-        cookies_base64 = base64.b64encode(cookies_bytes).decode('utf-8')
-        cookies_json = json.dumps({
-            "cookie_data": cookies_base64,
-            "created_at": datetime.now().isoformat()
-        })
-        print("✅ Cookies captured")
-        
-        print("Navigating to your profile...")
-        # Navigate to user's profile using /me
-        driver.get("https://www.linkedin.com/in/me/")
-        time.sleep(2)  # Give time for redirect to actual profile
-        
-        # Get the actual profile URL after redirect
-        actual_profile_url = driver.current_url
-        print(f"✅ Found your profile at: {actual_profile_url}")
-        
-        # Create directory for screenshots
-        directory = "me"  # Use consistent directory name for user profile
-        if os.path.exists(directory):
-            shutil.rmtree(directory)
-        os.mkdir(directory)
-        
-        print("📸 Taking screenshots of your profile (this may take a few moments)...")
-        # Take screenshots
-        wait = WebDriverWait(driver, 10)
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-
-        # Set standard dimensions for consistent capture
-        STANDARD_WIDTH = 850  # Reduced width to exclude sidebar
-        STANDARD_HEIGHT = 800  # Standard viewport height
-        
-        # Set window size to our standard dimensions
-        driver.set_window_size(STANDARD_WIDTH, STANDARD_HEIGHT)
-        
-        # Hide the right sidebar and adjust layout using JavaScript
-        driver.execute_script("""
-            // Hide right rail/sidebar
-            const rightRail = document.querySelector('.right-rail');
-            if (rightRail) rightRail.style.display = 'none';
-            
-            // Hide any other right-side elements
-            const asideElements = document.querySelectorAll('aside');
-            asideElements.forEach(el => el.style.display = 'none');
-            
-            // Adjust main content width
-            const mainContent = document.querySelector('.body');
-            if (mainContent) mainContent.style.maxWidth = '800px';
-        """)
-        
-        # Wait for layout changes to take effect
-        time.sleep(1)
-        
-        # Get page height after setting standard width and adjusting layout
-        page_height = driver.execute_script("return document.body.scrollHeight")
-        total_screenshots = (page_height + STANDARD_HEIGHT - 1) // STANDARD_HEIGHT
-
-        scroll_position = 0
-        screenshot_num = 1
-
-        while scroll_position < page_height:
-            wait.until(lambda driver: driver.execute_script(
-                "return document.readyState"
-            ) == "complete")
-            
-            time.sleep(0.5)
-            
-            driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
-            print(f"📸 Capturing screenshot {screenshot_num}/{total_screenshots}")
-            scroll_position += STANDARD_HEIGHT
-            driver.execute_script(f"window.scrollTo(0, {scroll_position});")
-            screenshot_num += 1
-        
-        print("🔄 Processing screenshots...")
-        # Stitch screenshots and convert to text
-        outputPath = stitch_screenshots(directory)
-        print("✅ Screenshots processed")
-        
-        print("Converting profile to text...")
-        txt = convertIMGtoTXT(outputPath)
-        print("✅ Profile data extracted")
-        
-        return txt, cookies_json
-        
-    except Exception as e:
-        print(f"❌ Error in saveCookies: {e}")
-        return None, None
-    finally:
-        print("Closing browser...")
-        try:
-            driver.quit()
-        except:
-            pass
-        print("✅ Browser closed")
-
-def clientProcess(clientLink, user_cookies_json=None):
-    if not user_cookies_json:
-        raise ValueError("LinkedIn cookies not provided")
-        
-    driver = webdriver.Chrome()
-    try:
-        print(f"Opening connection's profile: {clientLink}")
+        print(f"Opening profile: {clientLink}")
         driver.get(clientLink)
         
-        print("Loading cookies from database...")
-        # Decode and load cookies from database
-        try:
-            cookies_data = json.loads(user_cookies_json)
-            cookie_bytes = base64.b64decode(cookies_data["cookie_data"])
-            cookies = pickle.loads(cookie_bytes)
-            for cookie in cookies:
-                driver.add_cookie(cookie)
-            
-            # Refresh to apply cookies
-            driver.refresh()
-            time.sleep(2)  # Give time for page to load
-            print("✅ Cookies loaded")
-        except Exception as e:
-            print(f"❌ Error loading cookies: {e}")
-            raise
+        # Create a unique directory name using timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        directory = f"profile_{timestamp}"
         
-        # Create directory for screenshots
-        directory = clientLink.rstrip('/').split('/')[-1]
+        # Ensure we're in the correct directory
+        base_dir = os.path.join(os.getcwd(), "screenshots")
+        if not os.path.exists(base_dir):
+            os.makedirs(base_dir)
+            
+        directory = os.path.join(base_dir, directory)
         if os.path.exists(directory):
             shutil.rmtree(directory)
-        os.mkdir(directory)
+        os.makedirs(directory)
         
-        print("📸 Taking screenshots of connection's profile (this may take a few moments)...")
-        # Take screenshots
+        print("📸 Taking screenshots of profile (this may take a few moments)...")
+
         wait = WebDriverWait(driver, 10)
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-        # Set standard dimensions for consistent capture
-        STANDARD_WIDTH = 850  # Reduced width to exclude sidebar
-        STANDARD_HEIGHT = 800  # Standard viewport height
+        STANDARD_WIDTH = 850  
+        STANDARD_HEIGHT = 800
         
-        # Set window size to our standard dimensions
         driver.set_window_size(STANDARD_WIDTH, STANDARD_HEIGHT)
         
-        # Hide the right sidebar and adjust layout using JavaScript
         driver.execute_script("""
             // Hide right rail/sidebar
             const rightRail = document.querySelector('.right-rail');
@@ -203,10 +111,8 @@ def clientProcess(clientLink, user_cookies_json=None):
             if (mainContent) mainContent.style.maxWidth = '800px';
         """)
         
-        # Wait for layout changes to take effect
         time.sleep(1)
         
-        # Get page height after setting standard width and adjusting layout
         page_height = driver.execute_script("return document.body.scrollHeight")
         total_screenshots = (page_height + STANDARD_HEIGHT - 1) // STANDARD_HEIGHT
 
@@ -220,14 +126,14 @@ def clientProcess(clientLink, user_cookies_json=None):
             
             time.sleep(0.5)
             
-            driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
+            screenshot_path = os.path.join(directory, f"screenshot_{screenshot_num}.png")
+            driver.save_screenshot(screenshot_path)
             print(f"📸 Capturing screenshot {screenshot_num}/{total_screenshots}")
             scroll_position += STANDARD_HEIGHT
             driver.execute_script(f"window.scrollTo(0, {scroll_position});")
             screenshot_num += 1
         
         print("🔄 Processing screenshots...")
-        # Stitch screenshots and convert to text
         outputPath = stitch_screenshots(directory)
         print("✅ Screenshots processed")
         
@@ -241,12 +147,18 @@ def clientProcess(clientLink, user_cookies_json=None):
         print(f"❌ Error in clientProcess: {e}")
         return None
     finally:
-        print("Closing browser...")
-        try:
-            driver.quit()
-        except:
-            pass
-        print("✅ Browser closed")
+        if driver:
+            try:
+                driver.quit()
+            except Exception as e:
+                print(f"Error closing driver: {e}")
+        
+        # Clean up screenshots directory if it exists
+        if directory and os.path.exists(directory):
+            try:
+                shutil.rmtree(directory)
+            except Exception as e:
+                print(f"Error cleaning up directory: {e}")
 
 def authenticate_gmail():
     creds = None
@@ -265,7 +177,6 @@ def authenticate_gmail():
 
     service = build('gmail', 'v1', credentials=creds)
     
-    # Get user's email address
     try:
         oauth2_service = build('oauth2', 'v2', credentials=creds)
         user_info = oauth2_service.userinfo().get().execute()
@@ -323,14 +234,10 @@ def stitch_screenshots(folder_name):
         img_path = os.path.join(folder_path, file)
         img = Image.open(img_path)
         
-        # Calculate the width to keep (70% of original width)
         crop_width = int(img.width * 0.7)
-        
-        # Crop the image to keep only the left 70%
         cropped_img = img.crop((0, 0, crop_width, img.height))
         images.append(cropped_img)
 
-    # Get dimensions for the stitched image
     widths, heights = zip(*(img.size for img in images))
     total_height = sum(heights)
     max_width = max(widths)
@@ -349,7 +256,13 @@ def stitch_screenshots(folder_name):
     return output_path
 
 def take_screenshot(employee_link):
-    driver = webdriver.Chrome()
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument('--headless=new')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--disable-gpu')
+    
+    driver = webdriver.Chrome(options=chrome_options)
     try:
         driver.get(employee_link)
         directory = employee_link.rstrip('/').split('/')[-1]
@@ -389,105 +302,9 @@ def take_screenshot(employee_link):
     finally:
         driver.quit()
 
-def structure_profile_data(text):
-    print("\nStructuring profile data...")
-    if not text:
-        print("❌ No text provided to structure!")
-        return "Error: No profile text to structure"
-        
-    location_pattern = re.compile(r'(?i)area|region|location')
-    
-    sections = {
-        "name": "",
-        "headline": "",
-        "education": set(),
-        "experience": set(),
-        "location": "",
-        "about": set(),
-        "skills": set()
-    }
-    
-    section_markers = {
-        "education": {"education", "university", "college", "school"},
-        "experience": {"experience", "work", "employment"},
-        "skills": {"skills", "expertise", "technologies"},
-        "about": {"about", "overview", "summary"}
-    }
-    
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
-    print(f"Found {len(lines)} non-empty lines to process")
-    
-    current_section = None
-    
-    for i, line in enumerate(lines):
-        line_lower = line.lower()
-        
-        if not sections["name"] and i < 5 and len(line.split()) <= 4:
-            sections["name"] = line
-            print(f"Found name: {line}")
-            continue
-            
-        if not sections["headline"] and i < 7:
-            if any(keyword in line_lower for keyword in {"student", "engineer", "developer"}):
-                sections["headline"] = line
-                print(f"Found headline: {line}")
-                continue
-        
-        if not sections["location"] and location_pattern.search(line_lower):
-            sections["location"] = line
-            print(f"Found location: {line}")
-            continue
-            
-        section_found = False
-        for section, markers in section_markers.items():
-            if any(marker in line_lower for marker in markers):
-                current_section = section
-                section_found = True
-                print(f"\nFound {section} section")
-                break
-                
-        if not section_found and current_section and len(line) > 3:
-            sections[current_section].add(line)
-    
-    # Convert sets to lists
-    for section in ["education", "experience", "skills", "about"]:
-        sections[section] = list(sections[section])
-        print(f"\n{section.capitalize()} items found: {len(sections[section])}")
-    
-    formatted_text = [
-        f"Name: {sections['name']}",
-        f"Headline: {sections['headline']}",
-        f"Location: {sections['location']}",
-        "",
-        "About:",
-        ' '.join(sections['about']) if sections['about'] else 'Not specified',
-        "",
-        "Education:",
-        '\n'.join('- ' + edu for edu in sections['education']) if sections['education'] else 'Not specified',
-        "",
-        "Experience:",
-        '\n'.join('- ' + exp for exp in sections['experience']) if sections['experience'] else 'Not specified',
-        "",
-        "Skills:",
-        '\n'.join('- ' + skill for skill in sections['skills']) if sections['skills'] else 'Not specified'
-    ]
-    
-    result = '\n'.join(formatted_text)
-    print("\n✅ Profile structured successfully")
-    print("\n📄 Structured Profile Preview:")
-    print("-" * 50)
-    preview_lines = result.split('\n')[:7]  # Show first 7 lines as preview
-    print('\n'.join(preview_lines))
-    print("...")
-    print("-" * 50)
-    
-    return result
-
 def generate_email(userTXT, clientTXT, additional_context=""):
     try:
-        structured_user = structure_profile_data(userTXT)
-        structured_client = structure_profile_data(clientTXT)
-        
+
         context_prompt = ""
         if additional_context:
             context_prompt = f"\nAdditional Context Provided:\n{additional_context}\n\nPlease incorporate this context naturally into the email if relevant."
@@ -495,13 +312,13 @@ def generate_email(userTXT, clientTXT, additional_context=""):
         messages = [
             {"role": "system", "content": "You're helping draft an email for a 15-minute coffee chat."},
             {"role": "user", "content": [
-                {"type": "text", "text": f"""You are a professional email assistant. I will give you two structured LinkedIn profiles: mine and one from a person I want to connect with.
+                {"type": "text", "text": f"""You are a professional email assistant. I will give you two LinkedIn profiles: mine and one from a person I want to connect with.
 
 My LinkedIn Profile:
-{structured_user}
+{userTXT}
 
 Their LinkedIn Profile:
-{structured_client}{context_prompt}
+{clientTXT}{context_prompt}
 
 Your task is to:
 1. Analyze both profiles
@@ -561,14 +378,6 @@ def convertIMGtoTXT(image_path):
         
     all_text = ' '.join(result[1] for result in results)
     
-    # Print a sample of the detected text
-    sample_length = 200
-    text_sample = all_text[:sample_length] + "..." if len(all_text) > sample_length else all_text
-    print("\n📄 Sample of detected text:")
-    print("-" * 50)
-    print(text_sample)
-    print("-" * 50)
-    
     cleaned_text = clean_ocr_text(all_text)
     
     if not cleaned_text:
@@ -579,11 +388,9 @@ def convertIMGtoTXT(image_path):
     return cleaned_text
 
 def clean_ocr_text(text):
-    # Only clean the text if it's longer than 850 characters
     if len(text) > 850:
-        # Keep track of original and cleaned lengths
         original_length = len(text)
-        cleaned = text[150:-800]
+        cleaned = text[150:-400]
         cleaned_length = len(cleaned)
         print(f"\nText cleaning stats:")
         print(f"Original length: {original_length} characters")

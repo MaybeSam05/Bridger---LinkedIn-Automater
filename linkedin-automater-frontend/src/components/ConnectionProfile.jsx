@@ -33,7 +33,7 @@ const ConnectionProfile = ({ setEmailData }) => {
     setShowConfirmation(false);
 
     try {
-      const response = await axios.post("https://bridger.onrender.com/find_connection", {
+      const response = await axios.post("http://127.0.0.1:8000/find_connection", {
         link: clientURL,
         additional_context: context
       });
@@ -60,9 +60,9 @@ const ConnectionProfile = ({ setEmailData }) => {
     <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow border relative">
       {loading && (
         <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0F689C] mb-4"></div>
-            <p className="text-lg font-medium text-gray-700">Analyzing profiles and generating email...</p>
+          <div className="flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0F689C]"></div>
+            <p className="text-lg font-medium text-gray-700 mt-4">Analyzing profiles and generating email...</p>
             <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
           </div>
         </div>
@@ -90,7 +90,7 @@ const ConnectionProfile = ({ setEmailData }) => {
               loading ? "opacity-50 cursor-not-allowed" : "hover:bg-[#004182]"
             }`}
           >
-            {loading ? "Running..." : "Run Script"}
+            {loading ? "Running..." : "Submit"}
           </button>
         </div>
 

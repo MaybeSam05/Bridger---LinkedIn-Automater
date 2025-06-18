@@ -12,7 +12,7 @@ const Hero = () => {
   const handleGetStarted = async () => {
     try {
       // First authenticate with Gmail
-      const gmailResponse = await axios.post("https://bridger.onrender.com/authenticate_gmail");
+      const gmailResponse = await axios.post("http://127.0.0.1:8000/authenticate_gmail");
       
       if (gmailResponse.data.status === "authenticated") {
         // After Gmail auth, navigate to the tool page
@@ -50,7 +50,7 @@ const Hero = () => {
         <div className="lg:w-1/2">
           <div className="relative">
             <img
-              src="/laptopzoomBG.png"
+              src="/editedGIF.gif"
               alt="Laptop Mockup"
               className="w-full h-auto object-contain rounded-lg"
             />
