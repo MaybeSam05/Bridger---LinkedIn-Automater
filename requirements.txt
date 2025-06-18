@@ -78,8 +78,6 @@ SQLAlchemy==2.0.23
 starlette==0.27.0
 sympy==1.14.0
 tifffile==2024.1.30
-torch==2.0.1
-torchvision==0.15.2
 tqdm==4.67.1
 trio==0.30.0
 trio-websocket==0.12.2
