@@ -69,7 +69,7 @@ const UserProfile = () => {
 
   return (
     <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow border">
-      <h2 className="text-xl font-semibold mb-4">Setup Your Profile</h2>
+      <h2 className="text-xl font-semibold mb-4">Setup Your Profile (One Time Setup)</h2>
       <div className="space-y-4">
         <p className="text-gray-600">
           Please enter the link to your personal LinkedIn profile below. This will allow us to set up your profile for future connection requests.

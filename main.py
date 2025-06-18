@@ -1,7 +1,4 @@
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
+from playwright.async_api import async_playwright
 import time
 import pickle
 import os
@@ -31,128 +28,94 @@ SCOPES = [
     'openid'
 ]
 
-def clientProcess(clientLink):
-    driver = None
+async def clientProcess(clientLink):
     directory = None
     try:
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument('--headless=new')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        driver = webdriver.Chrome(options=chrome_options)
-        print("Opening LinkedIn login page...")
-        driver.get("https://www.linkedin.com/login")
-        max_wait_time = 45
-        
-        username = os.getenv("USERNAME")
-        password = os.getenv("PASSWORD")
-       
-        print("Logging in automatically...")
-        try:
-            username_field = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.ID, "username"))
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                viewport={'width': 850, 'height': 800}
             )
-            username_field.send_keys(username)
+            page = await context.new_page()
             
-            password_field = driver.find_element(By.ID, "password")
-            password_field.send_keys(password)
+            print("Opening LinkedIn login page...")
+            await page.goto("https://www.linkedin.com/login")
             
-            login_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-            login_button.click()
+            username = os.getenv("USERNAME")
+            password = os.getenv("PASSWORD")
             
-            wait = WebDriverWait(driver, max_wait_time)
-            wait.until(lambda driver: "linkedin.com/feed" in driver.current_url)
-            print("✅ Successfully logged in!")
-        except Exception as e:
-            print(f"❌ Login failed: {str(e)}")
-            if driver:
-                driver.quit()
-            return None
-        
-        print(f"Opening profile: {clientLink}")
-        driver.get(clientLink)
-        
-        # Create a unique directory name using timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        directory = f"profile_{timestamp}"
-        
-        # Ensure we're in the correct directory
-        base_dir = os.path.join(os.getcwd(), "screenshots")
-        if not os.path.exists(base_dir):
-            os.makedirs(base_dir)
+            print("Logging in automatically...")
+            try:
+                # Wait for and fill in login form
+                await page.wait_for_selector("#username")
+                await page.fill("#username", username)
+                await page.fill("#password", password)
+                await page.click("button[type='submit']")
+                
+                # Wait for successful login
+                await page.wait_for_url("https://www.linkedin.com/feed/", timeout=45000)
+                print("✅ Successfully logged in!")
+            except Exception as e:
+                print(f"❌ Login failed: {str(e)}")
+                return None
             
-        directory = os.path.join(base_dir, directory)
-        if os.path.exists(directory):
-            shutil.rmtree(directory)
-        os.makedirs(directory)
-        
-        print("📸 Taking screenshots of profile (this may take a few moments)...")
+            print(f"Opening profile: {clientLink}")
+            await page.goto(clientLink)
+            
+            # Create a unique directory name using timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            directory = f"profile_{timestamp}"
+            
+            # Ensure we're in the correct directory
+            base_dir = os.path.join(os.getcwd(), "screenshots")
+            if not os.path.exists(base_dir):
+                os.makedirs(base_dir)
+                
+            directory = os.path.join(base_dir, directory)
+            if os.path.exists(directory):
+                shutil.rmtree(directory)
+            os.makedirs(directory)
+            
+            print("📸 Taking screenshots of profile (this may take a few moments)...")
+            
+            # Hide right rail/sidebar and adjust content width
+            await page.evaluate("""
+                () => {
+                    const rightRail = document.querySelector('.right-rail');
+                    if (rightRail) rightRail.style.display = 'none';
+                    
+                    const asideElements = document.querySelectorAll('aside');
+                    asideElements.forEach(el => el.style.display = 'none');
+                    
+                    const mainContent = document.querySelector('.body');
+                    if (mainContent) mainContent.style.maxWidth = '800px';
+                }
+            """)
+            
+            time.sleep(1)
 
-        wait = WebDriverWait(driver, 10)
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-
-        STANDARD_WIDTH = 850  
-        STANDARD_HEIGHT = 800
-        
-        driver.set_window_size(STANDARD_WIDTH, STANDARD_HEIGHT)
-        
-        driver.execute_script("""
-            // Hide right rail/sidebar
-            const rightRail = document.querySelector('.right-rail');
-            if (rightRail) rightRail.style.display = 'none';
+            print("Taking full page screenshot...")
+            try:
+                await page.screenshot(
+                    path=f"{directory}/full_page.png",
+                    full_page=True
+                )
+            except Exception as e:
+                print(f"❌ Error in screenshot: {e}")
+                return None
             
-            // Hide any other right-side elements
-            const asideElements = document.querySelectorAll('aside');
-            asideElements.forEach(el => el.style.display = 'none');
+            print("✅ Screenshots processed")
             
-            // Adjust main content width
-            const mainContent = document.querySelector('.body');
-            if (mainContent) mainContent.style.maxWidth = '800px';
-        """)
-        
-        time.sleep(1)
-        
-        page_height = driver.execute_script("return document.body.scrollHeight")
-        total_screenshots = (page_height + STANDARD_HEIGHT - 1) // STANDARD_HEIGHT
-
-        scroll_position = 0
-        screenshot_num = 1
-
-        while scroll_position < page_height:
-            wait.until(lambda driver: driver.execute_script(
-                "return document.readyState"
-            ) == "complete")
+            print("Converting profile to text...")
+            txt = convertIMGtoTXT(f"{directory}/full_page.png")
+            print("✅ Profile data extracted")
             
-            time.sleep(0.5)
+            return txt
             
-            screenshot_path = os.path.join(directory, f"screenshot_{screenshot_num}.png")
-            driver.save_screenshot(screenshot_path)
-            print(f"📸 Capturing screenshot {screenshot_num}/{total_screenshots}")
-            scroll_position += STANDARD_HEIGHT
-            driver.execute_script(f"window.scrollTo(0, {scroll_position});")
-            screenshot_num += 1
-        
-        print("🔄 Processing screenshots...")
-        outputPath = stitch_screenshots(directory)
-        print("✅ Screenshots processed")
-        
-        print("Converting profile to text...")
-        txt = convertIMGtoTXT(outputPath)
-        print("✅ Profile data extracted")
-        
-        return txt
-        
     except Exception as e:
         print(f"❌ Error in clientProcess: {e}")
         return None
     finally:
-        if driver:
-            try:
-                driver.quit()
-            except Exception as e:
-                print(f"Error closing driver: {e}")
-        
         # Clean up screenshots directory if it exists
         if directory and os.path.exists(directory):
             try:
@@ -255,52 +218,67 @@ def stitch_screenshots(folder_name):
 
     return output_path
 
-def take_screenshot(employee_link):
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument('--headless=new')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-gpu')
-    
-    driver = webdriver.Chrome(options=chrome_options)
-    try:
-        driver.get(employee_link)
-        directory = employee_link.rstrip('/').split('/')[-1]
-
-        if os.path.exists(directory):
-            shutil.rmtree(directory)
-        os.mkdir(directory)
-
-        with open("linkedin_cookies.pkl", "rb") as file:
-            cookies = pickle.load(file)
-            for cookie in cookies:
-                driver.add_cookie(cookie)
-
-        driver.refresh()
+async def take_screenshot(employee_link):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context()
+        page = await context.new_page()
         
-        wait = WebDriverWait(driver, 10)
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-
-        page_height = driver.execute_script("return document.body.scrollHeight")
-        viewport_height = driver.execute_script("return window.innerHeight")
-        scroll_position = 0
-        screenshot_num = 1
-
-        while scroll_position < page_height:
-            wait.until(lambda driver: driver.execute_script(
-                "return document.readyState"
-            ) == "complete")
+        try:
+            print(f"Navigating to {employee_link}")
+            await page.goto(employee_link)
+            directory = employee_link.rstrip('/').split('/')[-1]
             
-            time.sleep(0.5)
+            if os.path.exists(directory):
+                shutil.rmtree(directory)
+            os.makedirs(directory)
             
-            driver.save_screenshot(f"{directory}/screenshot_{screenshot_num}.png")
-            scroll_position += viewport_height
-            driver.execute_script(f"window.scrollTo(0, {scroll_position});")
-            screenshot_num += 1
+            print("Waiting for page to load...")
+            await page.wait_for_load_state('networkidle')
+            
+            print("Taking full page screenshot...")
+            await page.screenshot(
+                path=f"{directory}/full_page.png",
+                full_page=True
+            )
+            
 
-        return directory
-    finally:
-        driver.quit()
+            '''
+            # If we need multiple screenshots for some reason, we can still do that
+            # Get page dimensions
+            page_height = await page.evaluate("document.body.scrollHeight")
+            viewport_height = await page.evaluate("window.innerHeight")
+            print(f"Page height: {page_height}, Viewport height: {viewport_height}")
+            
+            if page_height > viewport_height:
+                print("Taking additional screenshots for different viewport positions...")
+                scroll_position = 0
+                screenshot_num = 1
+                
+                while scroll_position < page_height:
+                    # Wait for any animations to complete
+                    await page.wait_for_load_state('networkidle')
+                    
+                    # Take screenshot of current viewport
+                    await page.screenshot(
+                        path=f"{directory}/screenshot_{screenshot_num}.png",
+                        full_page=False
+                    )
+                    print(f"📸 Captured screenshot {screenshot_num}")
+                    
+                    # Scroll and increment
+                    scroll_position += viewport_height
+                    await page.evaluate(f"window.scrollTo(0, {scroll_position})")
+                    screenshot_num += 1
+            
+            print(f"✅ Screenshots saved to {directory}")
+            return directory
+            '''
+        except Exception as e:
+            print(f"❌ Error in take_screenshot: {str(e)}")
+            raise
+        finally:
+            await browser.close()
 
 def generate_email(userTXT, clientTXT, additional_context=""):
     try:
@@ -390,7 +368,7 @@ def convertIMGtoTXT(image_path):
 def clean_ocr_text(text):
     if len(text) > 850:
         original_length = len(text)
-        cleaned = text[150:-400]
+        cleaned = text[10:-30]
         cleaned_length = len(cleaned)
         print(f"\nText cleaning stats:")
         print(f"Original length: {original_length} characters")

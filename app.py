@@ -175,7 +175,7 @@ async def setup_profile(
             raise HTTPException(status_code=400, detail="LinkedIn URL is required")
         
         # Process LinkedIn profile directly
-        userTXT = main.clientProcess(linkedin_url)
+        userTXT = await main.clientProcess(linkedin_url)
         if not userTXT:
             raise HTTPException(status_code=500, detail="Failed to capture LinkedIn profile")
 
@@ -214,7 +214,7 @@ async def find_connection(
             raise HTTPException(status_code=400, detail="User profile not found. Please set up your profile first.")
 
         # Process connection's profile
-        clientTXT = main.clientProcess(req.link)
+        clientTXT = await main.clientProcess(req.link)
         if not clientTXT:
             raise HTTPException(status_code=500, detail="Failed to process connection's profile")
 
