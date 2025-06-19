@@ -60,10 +60,10 @@ def main():
     # Import and start the application
     try:
         import uvicorn
-        from main import app
+        from app import api  # Import api from app.py instead of app from main.py
         
         print("✅ Application ready to start")
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(api, host="0.0.0.0", port=8000)
     except Exception as e:
         print(f"❌ Failed to start application: {e}")
         sys.exit(1)
