@@ -14,7 +14,7 @@ const EmailHistory = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://127.0.0.1:8000/email_history', {
+      const response = await axios.get('https://linkedin-automater-production.up.railway.app/email_history', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

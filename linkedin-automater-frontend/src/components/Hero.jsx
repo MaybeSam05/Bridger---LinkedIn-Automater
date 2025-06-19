@@ -12,7 +12,7 @@ const Hero = () => {
   const handleGetStarted = async () => {
     try {
       // First authenticate with Gmail
-      const gmailResponse = await axios.post("http://127.0.0.1:8000/authenticate_gmail");
+      const gmailResponse = await axios.post("https://linkedin-automater-production.up.railway.app/authenticate_gmail");
       
       if (gmailResponse.data.status === "authenticated") {
         // Store JWT token

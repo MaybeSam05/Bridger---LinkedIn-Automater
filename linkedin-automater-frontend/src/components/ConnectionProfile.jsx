@@ -34,7 +34,7 @@ const ConnectionProfile = ({ setEmailData }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post("http://127.0.0.1:8000/find_connection", {
+      const response = await axios.post("https://linkedin-automater-production.up.railway.app/find_connection", {
         link: clientURL,
         additional_context: context
       }, {

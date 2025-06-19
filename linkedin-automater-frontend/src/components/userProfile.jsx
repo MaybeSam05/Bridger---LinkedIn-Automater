@@ -12,7 +12,7 @@ const UserProfile = () => {
     const checkUserStatus = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get("http://127.0.0.1:8000/check_linkedin_status", {
+        const response = await axios.get("https://linkedin-automater-production.up.railway.app/check_linkedin_status", {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -35,7 +35,7 @@ const UserProfile = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        "http://127.0.0.1:8000/setup",
+        "https://linkedin-automater-production.up.railway.app/setup",
         { link: linkedinUrl },
         { headers: { 'Authorization': `Bearer ${token}` } }
       );

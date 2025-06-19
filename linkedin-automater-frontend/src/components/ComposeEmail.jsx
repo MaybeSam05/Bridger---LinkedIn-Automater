@@ -38,7 +38,7 @@ const ComposeEmail = ({ address, subject, body }) => {
     
     try {
       const token = localStorage.getItem('token');
-      await axios.post("http://127.0.0.1:8000/send_email", {
+      await axios.post("https://linkedin-automater-production.up.railway.app/send_email", {
         address: editedAddress,
         subject: editedSubject,
         body: editedBody
