@@ -66,6 +66,12 @@ def get_current_user(Authorization: str = Header(...)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+def safe_get_db():
+    """Safely get database session, handling cases where database is not available"""
+    try:
+        return get_db()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="Database not available")
 
 def get_or_create_user(db: Session, user_email: str = None) -> models.User:
     """Get existing user by email or create a new one"""
@@ -113,8 +119,34 @@ def create_user_session(db: Session, user: models.User) -> models.Session:
 def testing():
     return {"message": "API is running"}
 
+@api.get("/health")
+def health_check():
+    """Health check endpoint that doesn't require database access"""
+    try:
+        # Check if database is available
+        from database import engine
+        if engine is not None:
+            return {
+                "status": "healthy",
+                "database": "connected",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "degraded",
+                "database": "not_available",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 @api.post("/authenticate_gmail")
-async def authenticate_gmail(request: Request, db: Session = Depends(get_db), _: bool = Depends(rate_limit_dependency)):
+async def authenticate_gmail(request: Request, db: Session = Depends(safe_get_db), _: bool = Depends(rate_limit_dependency)):
     try:
         
         gmail_service, user_email = main.authenticate_gmail()
@@ -172,7 +204,7 @@ async def authenticate_gmail(request: Request, db: Session = Depends(get_db), _:
 @api.post("/setup")
 async def setup_profile(
     request: Request,
-    db: Session = Depends(get_db),
+    db: Session = Depends(safe_get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
@@ -206,7 +238,7 @@ async def setup_profile(
 async def find_connection(
     request: Request,
     req: ConnectionRequest,
-    db: Session = Depends(get_db),
+    db: Session = Depends(safe_get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
@@ -245,7 +277,7 @@ async def find_connection(
 async def send_email_endpoint(
     request: Request,
     req: EmailRequest,
-    db: Session = Depends(get_db),
+    db: Session = Depends(safe_get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
@@ -272,7 +304,7 @@ async def send_email_endpoint(
 @api.get("/email_history")
 async def get_email_history(
     request: Request,
-    db: Session = Depends(get_db),
+    db: Session = Depends(safe_get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
@@ -299,7 +331,7 @@ async def get_email_history(
 @api.get("/check_linkedin_status")
 async def check_linkedin_status(
     request: Request,
-    db: Session = Depends(get_db),
+    db: Session = Depends(safe_get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
