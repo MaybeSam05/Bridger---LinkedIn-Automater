@@ -26,21 +26,9 @@ SCOPES = [
 async def clientProcess(clientLink):
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=[
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--disable-gpu'
-                ]
-            )
+            browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
-                viewport={'width': 850, 'height': 800},
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                viewport={'width': 850, 'height': 800}
             )
             page = await context.new_page()
             print("Opening LinkedIn login page...")
@@ -130,47 +118,30 @@ def dedupe_paragraphs(raw_text: str) -> str:
 
 def authenticate_gmail():
     creds = None
-    
-    # Check if token file exists and load credentials
-    if os.path.exists('token.json'):
-        try:
-            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-            print("✅ Loaded existing credentials from token.json")
-        except Exception as e:
-            print(f"⚠️  Error loading existing credentials: {e}")
-            creds = None
 
-    # Check if credentials are valid
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-                print("✅ Token refreshed silently.")
-            except Exception as e:
-                print(f"❌ Error refreshing token: {e}")
-                creds = None
-        
-        # If no valid credentials, we can't proceed in containerized environment
-        if not creds:
-            print("❌ No valid Gmail credentials available")
-            print("⚠️  In containerized environments, Gmail authentication requires pre-existing token.json")
-            print("💡 Please authenticate locally first and include token.json in your deployment")
-            return None, None
+            creds.refresh(Request())
+            print("✅ Token refreshed silently.")
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('c.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+            print("✅ New login completed.")
 
-    # Build Gmail service
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+
+    service = build('gmail', 'v1', credentials=creds)
+    
     try:
-        service = build('gmail', 'v1', credentials=creds)
-        
-        # Get user email
         oauth2_service = build('oauth2', 'v2', credentials=creds)
         user_info = oauth2_service.userinfo().get().execute()
         user_email = user_info.get('email')
         print(f"✅ Retrieved user email: {user_email}")
         return service, user_email
-        
     except Exception as e:
-        print(f"❌ Failed to build Gmail service or get user email: {e}")
-        return None, None
+        print(f"❌ Failed to get user email: {e}")
+        return service, None
 
 def send_email(user_id, to_email, subject, body):
     creds = None

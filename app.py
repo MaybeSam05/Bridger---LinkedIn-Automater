@@ -66,13 +66,6 @@ def get_current_user(Authorization: str = Header(...)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-def safe_get_db():
-    """Safely get database session, handling cases where database is not available"""
-    try:
-        return get_db()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail="Database not available")
-
 def get_or_create_user(db: Session, user_email: str = None) -> models.User:
     """Get existing user by email or create a new one"""
     if user_email:
@@ -146,25 +139,13 @@ def health_check():
         }
 
 @api.post("/authenticate_gmail")
-async def authenticate_gmail(request: Request, db: Session = Depends(safe_get_db), _: bool = Depends(rate_limit_dependency)):
+async def authenticate_gmail(request: Request, db: Session = Depends(get_db), _: bool = Depends(rate_limit_dependency)):
     try:
-        print("🔐 Starting Gmail authentication...")
         
         gmail_service, user_email = main.authenticate_gmail()
         
-        if not gmail_service:
-            raise HTTPException(
-                status_code=500, 
-                detail="Gmail service not available. Please ensure token.json exists and contains valid credentials."
-            )
-        
         if not user_email:
-            raise HTTPException(
-                status_code=400, 
-                detail="Failed to get user email from Gmail authentication. Please check your token.json file."
-            )
-        
-        print(f"✅ Gmail authentication successful for: {user_email}")
+            raise HTTPException(status_code=400, detail="Failed to get user email from Gmail")
         
         user = db.query(models.User).filter(models.User.email == user_email).first()
         if not user:
@@ -174,10 +155,8 @@ async def authenticate_gmail(request: Request, db: Session = Depends(safe_get_db
                 is_active=True
             )
             db.add(user)
-            print(f"✅ Created new user: {user_email}")
         else:
             user.last_login = datetime.now()
-            print(f"✅ Updated existing user: {user_email}")
             
         db.commit()
         db.refresh(user)
@@ -201,31 +180,24 @@ async def authenticate_gmail(request: Request, db: Session = Depends(safe_get_db
                 user.gmail_token_expiry = expiry_dt
                 user.gmail_refresh_token = token_data.get('refresh_token', '')
                 db.commit()
-                print("✅ Gmail token stored successfully")
         except Exception as e:
-            print(f"⚠️  Error storing token: {e}")
-            # Don't fail the entire request if token storage fails
-            pass
+            print(f"Error storing token: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to store Gmail token: {str(e)}")
 
-        # Issue JWT token
-        token = jwt.encode({"email": user_email}, SECRET_KEY, algorithm="HS256")
-        return {"status": "authenticated", "email": user_email, "token": token}
-        
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
+        if gmail_service:
+            # Issue JWT token
+            token = jwt.encode({"email": user_email}, SECRET_KEY, algorithm="HS256")
+            return {"status": "authenticated", "email": user_email, "token": token}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to authenticate Gmail service")
     except Exception as e:
-        print(f"❌ Authentication error: {e}")
-        print(f"Error type: {type(e).__name__}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Authentication failed: {str(e)}. Please run authenticate_local.py locally to generate valid credentials."
-        )
+        print(f"Authentication error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api.post("/setup")
 async def setup_profile(
     request: Request,
-    db: Session = Depends(safe_get_db),
+    db: Session = Depends(get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
@@ -259,7 +231,7 @@ async def setup_profile(
 async def find_connection(
     request: Request,
     req: ConnectionRequest,
-    db: Session = Depends(safe_get_db),
+    db: Session = Depends(get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
@@ -298,7 +270,7 @@ async def find_connection(
 async def send_email_endpoint(
     request: Request,
     req: EmailRequest,
-    db: Session = Depends(safe_get_db),
+    db: Session = Depends(get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
@@ -325,7 +297,7 @@ async def send_email_endpoint(
 @api.get("/email_history")
 async def get_email_history(
     request: Request,
-    db: Session = Depends(safe_get_db),
+    db: Session = Depends(get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
@@ -352,7 +324,7 @@ async def get_email_history(
 @api.get("/check_linkedin_status")
 async def check_linkedin_status(
     request: Request,
-    db: Session = Depends(safe_get_db),
+    db: Session = Depends(get_db),
     _: bool = Depends(rate_limit_dependency),
     user_email: str = Depends(get_current_user)
 ):
