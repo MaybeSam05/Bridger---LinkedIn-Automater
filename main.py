@@ -26,7 +26,7 @@ SCOPES = [
 async def clientProcess(clientLink):
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+            browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
                 viewport={'width': 850, 'height': 800}
             )
@@ -124,7 +124,7 @@ def authenticate_gmail():
             creds.refresh(Request())
             print("✅ Token refreshed silently.")
         else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file('c.json', SCOPES)
             creds = flow.run_local_server(port=0)
             print("✅ New login completed.")
 
