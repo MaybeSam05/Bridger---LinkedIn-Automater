@@ -148,11 +148,23 @@ def health_check():
 @api.post("/authenticate_gmail")
 async def authenticate_gmail(request: Request, db: Session = Depends(safe_get_db), _: bool = Depends(rate_limit_dependency)):
     try:
+        print("🔐 Starting Gmail authentication...")
         
         gmail_service, user_email = main.authenticate_gmail()
         
+        if not gmail_service:
+            raise HTTPException(
+                status_code=500, 
+                detail="Gmail service not available. Please ensure token.json exists and contains valid credentials."
+            )
+        
         if not user_email:
-            raise HTTPException(status_code=400, detail="Failed to get user email from Gmail")
+            raise HTTPException(
+                status_code=400, 
+                detail="Failed to get user email from Gmail authentication. Please check your token.json file."
+            )
+        
+        print(f"✅ Gmail authentication successful for: {user_email}")
         
         user = db.query(models.User).filter(models.User.email == user_email).first()
         if not user:
@@ -162,8 +174,10 @@ async def authenticate_gmail(request: Request, db: Session = Depends(safe_get_db
                 is_active=True
             )
             db.add(user)
+            print(f"✅ Created new user: {user_email}")
         else:
             user.last_login = datetime.now()
+            print(f"✅ Updated existing user: {user_email}")
             
         db.commit()
         db.refresh(user)
@@ -187,19 +201,26 @@ async def authenticate_gmail(request: Request, db: Session = Depends(safe_get_db
                 user.gmail_token_expiry = expiry_dt
                 user.gmail_refresh_token = token_data.get('refresh_token', '')
                 db.commit()
+                print("✅ Gmail token stored successfully")
         except Exception as e:
-            print(f"Error storing token: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to store Gmail token: {str(e)}")
+            print(f"⚠️  Error storing token: {e}")
+            # Don't fail the entire request if token storage fails
+            pass
 
-        if gmail_service:
-            # Issue JWT token
-            token = jwt.encode({"email": user_email}, SECRET_KEY, algorithm="HS256")
-            return {"status": "authenticated", "email": user_email, "token": token}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to authenticate Gmail service")
+        # Issue JWT token
+        token = jwt.encode({"email": user_email}, SECRET_KEY, algorithm="HS256")
+        return {"status": "authenticated", "email": user_email, "token": token}
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        print(f"Authentication error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Authentication error: {e}")
+        print(f"Error type: {type(e).__name__}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Authentication failed: {str(e)}. Please run authenticate_local.py locally to generate valid credentials."
+        )
 
 @api.post("/setup")
 async def setup_profile(
