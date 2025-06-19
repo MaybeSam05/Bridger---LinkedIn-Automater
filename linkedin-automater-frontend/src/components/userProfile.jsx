@@ -11,7 +11,12 @@ const UserProfile = () => {
   useEffect(() => {
     const checkUserStatus = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/check_linkedin_status");
+        const token = localStorage.getItem('token');
+        const response = await axios.get("http://127.0.0.1:8000/check_linkedin_status", {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         setDone(response.data.has_user_profile);
       } catch (err) {
         console.error("Error checking LinkedIn status:", err);
@@ -28,10 +33,11 @@ const UserProfile = () => {
     setError(false);
 
     try {
+      const token = localStorage.getItem('token');
       const response = await axios.post(
         "http://127.0.0.1:8000/setup",
         { link: linkedinUrl },
-        { withCredentials: true }
+        { headers: { 'Authorization': `Bearer ${token}` } }
       );
 
       if (response.data.status === "valid") {

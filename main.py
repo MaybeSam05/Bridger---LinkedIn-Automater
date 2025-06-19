@@ -1,20 +1,15 @@
 from playwright.async_api import async_playwright
 import time
-import pickle
 import os
 import re
-import easyocr 
 import base64
 from openai import OpenAI
-from PIL import Image
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
-import shutil
-import sys
 import json
 from datetime import datetime
 from database import SessionLocal
@@ -29,99 +24,97 @@ SCOPES = [
 ]
 
 async def clientProcess(clientLink):
-    directory = None
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=False)
             context = await browser.new_context(
                 viewport={'width': 850, 'height': 800}
             )
             page = await context.new_page()
-            
             print("Opening LinkedIn login page...")
             await page.goto("https://www.linkedin.com/login")
-            
+
             username = os.getenv("USERNAME")
             password = os.getenv("PASSWORD")
-            
+
             print("Logging in automatically...")
             try:
-                # Wait for and fill in login form
-                await page.wait_for_selector("#username")
+                await page.wait_for_selector("#username", timeout=10000)
+                await page.wait_for_timeout(2000)
                 await page.fill("#username", username)
+                await page.wait_for_timeout(1500)
                 await page.fill("#password", password)
+                await page.wait_for_timeout(2000)
                 await page.click("button[type='submit']")
-                
-                # Wait for successful login
                 await page.wait_for_url("https://www.linkedin.com/feed/", timeout=45000)
                 print("✅ Successfully logged in!")
             except Exception as e:
                 print(f"❌ Login failed: {str(e)}")
                 return None
-            
+
             print(f"Opening profile: {clientLink}")
             await page.goto(clientLink)
-            
-            # Create a unique directory name using timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            directory = f"profile_{timestamp}"
-            
-            # Ensure we're in the correct directory
-            base_dir = os.path.join(os.getcwd(), "screenshots")
-            if not os.path.exists(base_dir):
-                os.makedirs(base_dir)
-                
-            directory = os.path.join(base_dir, directory)
-            if os.path.exists(directory):
-                shutil.rmtree(directory)
-            os.makedirs(directory)
-            
-            print("📸 Taking screenshots of profile (this may take a few moments)...")
-            
-            # Hide right rail/sidebar and adjust content width
-            await page.evaluate("""
-                () => {
-                    const rightRail = document.querySelector('.right-rail');
-                    if (rightRail) rightRail.style.display = 'none';
-                    
-                    const asideElements = document.querySelectorAll('aside');
-                    asideElements.forEach(el => el.style.display = 'none');
-                    
-                    const mainContent = document.querySelector('.body');
-                    if (mainContent) mainContent.style.maxWidth = '800px';
-                }
-            """)
-            
-            time.sleep(1)
+            await page.wait_for_timeout(1000)
 
-            print("Taking full page screenshot...")
-            try:
-                await page.screenshot(
-                    path=f"{directory}/full_page.png",
-                    full_page=True
-                )
-            except Exception as e:
-                print(f"❌ Error in screenshot: {e}")
-                return None
-            
-            print("✅ Screenshots processed")
-            
-            print("Converting profile to text...")
-            txt = convertIMGtoTXT(f"{directory}/full_page.png")
+            print("Extracting profile text...")
+            await page.wait_for_timeout(1000)
+
+            profile_text = await page.locator('.ZUMfuREyJUboAigOglxAGMXYsygQhCjWNs').inner_text()
+            await page.wait_for_timeout(3000)
+            deduped_text = dedupe_paragraphs(profile_text)
+            final_cleaned_text = clean_profile_text(deduped_text)
+
             print("✅ Profile data extracted")
-            
-            return txt
-            
+            return final_cleaned_text
+
     except Exception as e:
         print(f"❌ Error in clientProcess: {e}")
         return None
-    finally:
-        # Clean up screenshots directory if it exists
-        if directory and os.path.exists(directory):
-            try:
-                shutil.rmtree(directory)
-            except Exception as e:
-                print(f"Error cleaning up directory: {e}")
+
+
+def clean_profile_text(raw_text: str) -> str:
+    junk_phrases = {
+        "Follow", "Show all", "Activity", "Recent posts", "Explore Premium profiles",
+        "People you may know", "Message", "Connect", "More", "Companies", "Schools",
+        "Show all companies", "Show all 11 skills", "LinkedIn News", "Contact info",
+        "followers", "connections", "hasn't posted yet"
+    }
+
+    seen = set()
+    cleaned_lines = []
+
+    for line in raw_text.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        # Skip if already seen
+        if line in seen:
+            continue
+        # Skip if it contains junk
+        if any(junk.lower() in line.lower() for junk in junk_phrases):
+            continue
+        seen.add(line)
+        cleaned_lines.append(line)
+
+    return '\n'.join(cleaned_lines)
+
+def dedupe_paragraphs(raw_text: str) -> str:
+    seen = set()
+    cleaned = []
+
+    # Split text into paragraphs based on two or more newlines
+    paragraphs = re.split(r'\n{2,}', raw_text)
+
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+        if para in seen:
+            continue
+        seen.add(para)
+        cleaned.append(para)
+
+    return '\n\n'.join(cleaned)
 
 def authenticate_gmail():
     creds = None
@@ -183,102 +176,6 @@ def send_email(user_id, to_email, subject, body):
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
         return False
-
-def stitch_screenshots(folder_name):
-    folder_path = os.path.join(os.getcwd(), folder_name) 
-
-    images = []
-    files = sorted(
-        [f for f in os.listdir(folder_path) if f.endswith('.png')],
-        key=lambda x: int(x.split('_')[1].split('.')[0])
-    )
-
-    for file in files:
-        img_path = os.path.join(folder_path, file)
-        img = Image.open(img_path)
-        
-        crop_width = int(img.width * 0.7)
-        cropped_img = img.crop((0, 0, crop_width, img.height))
-        images.append(cropped_img)
-
-    widths, heights = zip(*(img.size for img in images))
-    total_height = sum(heights)
-    max_width = max(widths)
-
-    stitched_img = Image.new('RGB', (max_width, total_height))
-
-    y_offset = 0
-    for img in images:
-        stitched_img.paste(img, (0, y_offset))
-        y_offset += img.height
-
-    output_path = os.path.join(folder_path, "stitched_screenshot.png")
-    stitched_img.save(output_path)
-    print(f"✅ Stitched screenshot saved")
-
-    return output_path
-
-async def take_screenshot(employee_link):
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-        page = await context.new_page()
-        
-        try:
-            print(f"Navigating to {employee_link}")
-            await page.goto(employee_link)
-            directory = employee_link.rstrip('/').split('/')[-1]
-            
-            if os.path.exists(directory):
-                shutil.rmtree(directory)
-            os.makedirs(directory)
-            
-            print("Waiting for page to load...")
-            await page.wait_for_load_state('networkidle')
-            
-            print("Taking full page screenshot...")
-            await page.screenshot(
-                path=f"{directory}/full_page.png",
-                full_page=True
-            )
-            
-
-            '''
-            # If we need multiple screenshots for some reason, we can still do that
-            # Get page dimensions
-            page_height = await page.evaluate("document.body.scrollHeight")
-            viewport_height = await page.evaluate("window.innerHeight")
-            print(f"Page height: {page_height}, Viewport height: {viewport_height}")
-            
-            if page_height > viewport_height:
-                print("Taking additional screenshots for different viewport positions...")
-                scroll_position = 0
-                screenshot_num = 1
-                
-                while scroll_position < page_height:
-                    # Wait for any animations to complete
-                    await page.wait_for_load_state('networkidle')
-                    
-                    # Take screenshot of current viewport
-                    await page.screenshot(
-                        path=f"{directory}/screenshot_{screenshot_num}.png",
-                        full_page=False
-                    )
-                    print(f"📸 Captured screenshot {screenshot_num}")
-                    
-                    # Scroll and increment
-                    scroll_position += viewport_height
-                    await page.evaluate(f"window.scrollTo(0, {scroll_position})")
-                    screenshot_num += 1
-            
-            print(f"✅ Screenshots saved to {directory}")
-            return directory
-            '''
-        except Exception as e:
-            print(f"❌ Error in take_screenshot: {str(e)}")
-            raise
-        finally:
-            await browser.close()
 
 def generate_email(userTXT, clientTXT, additional_context=""):
     try:
@@ -344,37 +241,3 @@ email//subject//body"""}
 def validLink(url):
     pattern = re.compile(r"^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?$")
     return bool(pattern.match(url))
-
-def convertIMGtoTXT(image_path):
-    print("\nStarting OCR processing...")
-    reader = easyocr.Reader(['en'], gpu=False) 
-    results = reader.readtext(image_path)
-    
-    if not results:
-        print("❌ No text was detected in the image!")
-        return ''
-        
-    all_text = ' '.join(result[1] for result in results)
-    
-    cleaned_text = clean_ocr_text(all_text)
-    
-    if not cleaned_text:
-        print("⚠️ Warning: Cleaned text is empty!")
-    else:
-        print(f"✅ Successfully extracted {len(cleaned_text)} characters of text")
-        
-    return cleaned_text
-
-def clean_ocr_text(text):
-    if len(text) > 850:
-        original_length = len(text)
-        cleaned = text[10:-30]
-        cleaned_length = len(cleaned)
-        print(f"\nText cleaning stats:")
-        print(f"Original length: {original_length} characters")
-        print(f"Cleaned length: {cleaned_length} characters")
-        print(f"Removed {original_length - cleaned_length} characters")
-        return cleaned
-    else:
-        print(f"\n⚠️ Text is too short ({len(text)} characters) to clean properly")
-        return text

@@ -13,7 +13,12 @@ const EmailHistory = () => {
   const fetchEmails = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://127.0.0.1:8000/email_history');
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://127.0.0.1:8000/email_history', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       setEmails(response.data);
       setError(null);
     } catch (err) {

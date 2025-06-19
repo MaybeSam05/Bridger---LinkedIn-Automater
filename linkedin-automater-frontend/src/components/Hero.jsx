@@ -15,6 +15,10 @@ const Hero = () => {
       const gmailResponse = await axios.post("http://127.0.0.1:8000/authenticate_gmail");
       
       if (gmailResponse.data.status === "authenticated") {
+        // Store JWT token
+        if (gmailResponse.data.token) {
+          localStorage.setItem('token', gmailResponse.data.token);
+        }
         // After Gmail auth, navigate to the tool page
         navigate("/tool");
       }

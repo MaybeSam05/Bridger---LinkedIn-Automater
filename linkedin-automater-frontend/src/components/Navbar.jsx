@@ -17,6 +17,10 @@ const Navbar = () => {
       console.log("Gmail authentication response:", res);
       
       if (res.data.status === "authenticated") {
+        // Store JWT token
+        if (res.data.token) {
+          localStorage.setItem('token', res.data.token);
+        }
         // After successful Gmail authentication, navigate to the tool page
         navigate("/tool");
       } else {

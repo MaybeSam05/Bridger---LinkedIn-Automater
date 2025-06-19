@@ -33,9 +33,14 @@ const ConnectionProfile = ({ setEmailData }) => {
     setShowConfirmation(false);
 
     try {
+      const token = localStorage.getItem('token');
       const response = await axios.post("http://127.0.0.1:8000/find_connection", {
         link: clientURL,
         additional_context: context
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (response.data.status === "valid") {

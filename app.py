@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Cookie, Request
+from fastapi import FastAPI, HTTPException, Depends, Cookie, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import String
@@ -11,8 +11,12 @@ import json
 import base64
 from typing import Optional
 from rate_limiter import rate_limit_dependency
+import os
+from jose import jwt, JWTError
 
 api = FastAPI()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 api.add_middleware(
     CORSMiddleware,
@@ -49,7 +53,19 @@ class EmailRequest(BaseModel):
     subject: str
     body: str
 
-usertext = ""
+def get_current_user(Authorization: str = Header(...)):
+    try:
+        scheme, _, token = Authorization.partition(' ')
+        if scheme.lower() != 'bearer':
+            raise HTTPException(status_code=401, detail="Invalid auth scheme")
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_email = payload.get("email")
+        if not user_email:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return user_email
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
 
 def get_or_create_user(db: Session, user_email: str = None) -> models.User:
     """Get existing user by email or create a new one"""
@@ -144,7 +160,9 @@ async def authenticate_gmail(request: Request, db: Session = Depends(get_db), _:
             raise HTTPException(status_code=500, detail=f"Failed to store Gmail token: {str(e)}")
 
         if gmail_service:
-            return {"status": "authenticated", "email": user_email}
+            # Issue JWT token
+            token = jwt.encode({"email": user_email}, SECRET_KEY, algorithm="HS256")
+            return {"status": "authenticated", "email": user_email, "token": token}
         else:
             raise HTTPException(status_code=500, detail="Failed to authenticate Gmail service")
     except Exception as e:
@@ -155,34 +173,26 @@ async def authenticate_gmail(request: Request, db: Session = Depends(get_db), _:
 async def setup_profile(
     request: Request,
     db: Session = Depends(get_db),
-    _: bool = Depends(rate_limit_dependency)
+    _: bool = Depends(rate_limit_dependency),
+    user_email: str = Depends(get_current_user)
 ):
     try:
-        user = db.query(models.User).filter(
-            models.User.gmail_token.is_not(None)
-        ).order_by(models.User.last_login.desc()).first()
-        
+        user = db.query(models.User).filter(models.User.email == user_email).first()
         if not user:
             raise HTTPException(status_code=400, detail="Please authenticate with Gmail first")
-            
         user = get_or_create_user(db, user.email)
-        
         session = create_user_session(db, user)
-        
         data = await request.json()
         linkedin_url = data.get("link")
         if not linkedin_url:
             raise HTTPException(status_code=400, detail="LinkedIn URL is required")
-        
         # Process LinkedIn profile directly
         userTXT = await main.clientProcess(linkedin_url)
         if not userTXT:
             raise HTTPException(status_code=500, detail="Failed to capture LinkedIn profile")
-
         # Store userTXT in the User table
         user.usertxt = userTXT
         db.commit()
-
         return {
             "status": "valid",
             "email": user.email,
@@ -197,45 +207,36 @@ async def find_connection(
     request: Request,
     req: ConnectionRequest,
     db: Session = Depends(get_db),
-    _: bool = Depends(rate_limit_dependency)
+    _: bool = Depends(rate_limit_dependency),
+    user_email: str = Depends(get_current_user)
 ):
     if not main.validLink(req.link):
         raise HTTPException(status_code=400, detail="Invalid client URL")
-
     try:
-        user = db.query(models.User).filter(
-            models.User.gmail_token.is_not(None)
-        ).order_by(models.User.last_login.desc()).first()
-        
+        user = db.query(models.User).filter(models.User.email == user_email).first()
         if not user:
             raise HTTPException(status_code=400, detail="Please authenticate with Gmail first")
-
         if not user.usertxt:
             raise HTTPException(status_code=400, detail="User profile not found. Please set up your profile first.")
-
         # Process connection's profile
         clientTXT = await main.clientProcess(req.link)
         if not clientTXT:
             raise HTTPException(status_code=500, detail="Failed to process connection's profile")
-
         try:
             address, subject, body = main.generate_email(
                 user.usertxt, 
                 clientTXT,
                 req.additional_context
             )
-            
             return {
                 "status": "valid",
                 "address": address,
                 "subject": subject,
                 "body": body
             }
-            
         except Exception as e:
             print(f"Error generating email: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to generate email: {str(e)}")
-            
     except Exception as e:
         print(f"Error in find_connection: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -245,16 +246,12 @@ async def send_email_endpoint(
     request: Request,
     req: EmailRequest,
     db: Session = Depends(get_db),
-    _: bool = Depends(rate_limit_dependency)
+    _: bool = Depends(rate_limit_dependency),
+    user_email: str = Depends(get_current_user)
 ):
-    
-    user = db.query(models.User).filter(
-        models.User.gmail_token.is_not(None)
-    ).order_by(models.User.last_login.desc()).first()
-    
+    user = db.query(models.User).filter(models.User.email == user_email).first()
     if not user:
         raise HTTPException(status_code=400, detail="Please authenticate with Gmail first")
-
     email = models.Email(
         user_email=user.email,
         email_address=req.address,
@@ -264,12 +261,9 @@ async def send_email_endpoint(
     )
     db.add(email)
     db.commit()
-
     success = main.send_email("me", req.address, req.subject, req.body)
-    
     email.status = 'sent' if success else 'failed'
     db.commit()
-
     if success:
         return {"message": "Email sent successfully"}
     else:
@@ -279,20 +273,16 @@ async def send_email_endpoint(
 async def get_email_history(
     request: Request,
     db: Session = Depends(get_db),
-    _: bool = Depends(rate_limit_dependency)
+    _: bool = Depends(rate_limit_dependency),
+    user_email: str = Depends(get_current_user)
 ):
     try:
-        user = db.query(models.User).filter(
-            models.User.gmail_token.is_not(None)
-        ).order_by(models.User.last_login.desc()).first()
-        
+        user = db.query(models.User).filter(models.User.email == user_email).first()
         if not user:
             raise HTTPException(status_code=400, detail="Please authenticate with Gmail first")
-
         emails = db.query(models.Email).filter(
             models.Email.user_email == user.email
         ).order_by(models.Email.sent_at.desc()).all()
-
         email_list = []
         for email in emails:
             email_list.append({
@@ -302,9 +292,7 @@ async def get_email_history(
                 "body": email.body,
                 "status": email.status
             })
-
         return email_list
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -312,18 +300,14 @@ async def get_email_history(
 async def check_linkedin_status(
     request: Request,
     db: Session = Depends(get_db),
-    _: bool = Depends(rate_limit_dependency)
+    _: bool = Depends(rate_limit_dependency),
+    user_email: str = Depends(get_current_user)
 ):
     try:
-        user = db.query(models.User).filter(
-            models.User.gmail_token.is_not(None)
-        ).order_by(models.User.last_login.desc()).first()
-        
+        user = db.query(models.User).filter(models.User.email == user_email).first()
         if not user:
             return {"has_user_profile": False}
-            
         has_user_profile = user.usertxt is not None and user.usertxt.strip() != ""
-        
         return {
             "has_user_profile": has_user_profile
         }

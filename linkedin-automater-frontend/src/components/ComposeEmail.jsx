@@ -37,10 +37,15 @@ const ComposeEmail = ({ address, subject, body }) => {
     setShowConfirmation(false);
     
     try {
+      const token = localStorage.getItem('token');
       await axios.post("http://127.0.0.1:8000/send_email", {
         address: editedAddress,
         subject: editedSubject,
         body: editedBody
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       
       setSendStatus('success');
