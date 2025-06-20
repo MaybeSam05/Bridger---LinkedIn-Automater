@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 const conversations = "text-4xl md:text-5xl font-bold text-slate-700 mb-4";
 const outreach = "text-slate-600 ";
@@ -9,21 +10,52 @@ const easy = "text-4xl md:text-5xl font-bold mb-6";
 const Hero = () => {
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Listen for OAuth messages from popup
+    const handleMessage = (event) => {
+      if (event.data.type === 'oauth-success') {
+        console.log('OAuth successful:', event.data);
+        // Store JWT token
+        if (event.data.token) {
+          localStorage.setItem('token', event.data.token);
+        }
+        // Navigate to tool page
+        navigate("/tool");
+      } else if (event.data.type === 'oauth-error') {
+        console.error('OAuth error:', event.data.error);
+        alert(`Authentication failed: ${event.data.error}`);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [navigate]);
+
   const handleGetStarted = async () => {
     try {
-      // First authenticate with Gmail
-      const gmailResponse = await axios.post("https://linkedin-automater-production.up.railway.app/authenticate_gmail");
+      // Get OAuth URL from backend
+      const response = await axios.get(`${API_BASE_URL}/oauth/url`);
+      const oauthUrl = response.data.oauth_url;
       
-      if (gmailResponse.data.status === "authenticated") {
-        // Store JWT token
-        if (gmailResponse.data.token) {
-          localStorage.setItem('token', gmailResponse.data.token);
-        }
-        // After Gmail auth, navigate to the tool page
-        navigate("/tool");
+      // Open popup window
+      const width = 500;
+      const height = 600;
+      const left = window.innerWidth / 2 - width / 2;
+      const top = window.innerHeight / 2 - height / 2;
+
+      const popup = window.open(
+        oauthUrl,
+        'GoogleSignIn',
+        `width=${width},height=${height},top=${top},left=${left}`
+      );
+
+      // Optional: Check if popup was blocked
+      if (!popup) {
+        alert("Popup was blocked. Please allow popups for this site and try again.");
       }
     } catch (error) {
-      console.error("Authentication error:", error);
+      console.error("Error getting OAuth URL:", error);
+      alert("Something went wrong. Please try again.");
     }
   };
 

@@ -13,6 +13,8 @@ from email.mime.text import MIMEText
 import json
 from datetime import datetime
 from database import SessionLocal
+import models
+import requests
 
 load_dotenv()
 
@@ -144,35 +146,76 @@ def authenticate_gmail():
         return service, None
 
 def send_email(user_id, to_email, subject, body):
-    creds = None
-    if os.path.exists('token.json'):
-        try:
-            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-        except Exception as e:
-            print(f"Error loading credentials: {e}")
-            return False
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-            except Exception as e:
-                print(f"Error refreshing credentials: {e}")
-                return False
-        else:
-            print("No valid credentials available")
-            return False
-
+    """Send email using OAuth tokens stored in database"""
     try:
-        service = build('gmail', 'v1', credentials=creds)
-        message = MIMEText(body)
-        message['to'] = to_email
-        message['subject'] = subject
-        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        # Get user from database to access tokens
         
-        sent_message = service.users().messages().send(userId=user_id, body={'raw': raw}).execute()
-        print(f"✅ Email sent to {to_email} with subject: {subject}")
-        return True
+        db = SessionLocal()
+        try:
+            user = db.query(models.User).filter(models.User.email == user_id).first()
+            if not user or not user.gmail_token:
+                print("No valid Gmail tokens found for user")
+                return False
+            
+            # Check if token is expired and refresh if needed
+            if user.gmail_token_expiry and user.gmail_token_expiry < datetime.now():
+                if user.gmail_refresh_token:
+                    # Refresh the token
+                    refresh_data = {
+                        'client_id': os.getenv("GOOGLE_CLIENT_ID"),
+                        'client_secret': os.getenv("GOOGLE_CLIENT_SECRET"),
+                        'refresh_token': user.gmail_refresh_token,
+                        'grant_type': 'refresh_token'
+                    }
+                    
+                    response = requests.post('https://oauth2.googleapis.com/token', data=refresh_data)
+                    if response.status_code == 200:
+                        new_tokens = response.json()
+                        user.gmail_token = new_tokens
+                        user.gmail_token_expiry = datetime.fromtimestamp(
+                            new_tokens.get('expires_in', 0) + datetime.now().timestamp()
+                        )
+                        db.commit()
+                    else:
+                        print("Failed to refresh token")
+                        return False
+                else:
+                    print("Token expired and no refresh token available")
+                    return False
+            
+            # Use the access token to send email
+            access_token = user.gmail_token.get('access_token')
+            if not access_token:
+                print("No access token available")
+                return False
+            
+            # Create Gmail service with OAuth credentials
+            from google.oauth2.credentials import Credentials
+            from googleapiclient.discovery import build
+            
+            creds = Credentials(
+                access_token,
+                refresh_token=user.gmail_refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=os.getenv("GOOGLE_CLIENT_ID"),
+                client_secret=os.getenv("GOOGLE_CLIENT_SECRET")
+            )
+            
+            service = build('gmail', 'v1', credentials=creds)
+            
+            # Create and send email
+            message = MIMEText(body)
+            message['to'] = to_email
+            message['subject'] = subject
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            
+            sent_message = service.users().messages().send(userId='me', body={'raw': raw}).execute()
+            print(f"✅ Email sent to {to_email} with subject: {subject}")
+            return True
+            
+        finally:
+            db.close()
+            
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
         return False

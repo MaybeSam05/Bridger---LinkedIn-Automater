@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 const UserProfile = () => {
   const [done, setDone] = useState(false);
@@ -12,7 +13,7 @@ const UserProfile = () => {
     const checkUserStatus = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get("https://linkedin-automater-production.up.railway.app/check_linkedin_status", {
+        const response = await axios.get(`${API_BASE_URL}/check_linkedin_status`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -35,7 +36,7 @@ const UserProfile = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        "https://linkedin-automater-production.up.railway.app/setup",
+        `${API_BASE_URL}/setup`,
         { link: linkedinUrl },
         { headers: { 'Authorization': `Bearer ${token}` } }
       );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 const ComposeEmail = ({ address, subject, body }) => {
   const [editedAddress, setEditedAddress] = useState(address || "");
@@ -38,7 +39,7 @@ const ComposeEmail = ({ address, subject, body }) => {
     
     try {
       const token = localStorage.getItem('token');
-      await axios.post("https://linkedin-automater-production.up.railway.app/send_email", {
+      await axios.post(`${API_BASE_URL}/send_email`, {
         address: editedAddress,
         subject: editedSubject,
         body: editedBody

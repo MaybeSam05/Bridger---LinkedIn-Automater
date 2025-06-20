@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 const MAX_CONTEXT_LENGTH = 150;
 
@@ -34,7 +35,7 @@ const ConnectionProfile = ({ setEmailData }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post("https://linkedin-automater-production.up.railway.app/find_connection", {
+      const response = await axios.post(`${API_BASE_URL}/find_connection`, {
         link: clientURL,
         additional_context: context
       }, {

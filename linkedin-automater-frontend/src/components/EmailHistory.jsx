@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from "../config";
 
 const EmailHistory = () => {
   const [emails, setEmails] = useState([]);
@@ -14,7 +15,7 @@ const EmailHistory = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('https://linkedin-automater-production.up.railway.app/email_history', {
+      const response = await axios.get(`${API_BASE_URL}/email_history`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
