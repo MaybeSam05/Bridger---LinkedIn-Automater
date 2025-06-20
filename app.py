@@ -21,7 +21,7 @@ api = FastAPI()
 SECRET_KEY = os.getenv("SECRET_KEY")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI", "https://linkedin-automater-production.up.railway.app/oauth/callback")
+REDIRECT_URI = os.getenv("REDIRECT_URI", "https://bridger.onrender.com/oauth/callback")
 
 api.add_middleware(
     CORSMiddleware,
@@ -29,6 +29,7 @@ api.add_middleware(
         "https://bridger-8u91muc0s-samarth-vermas-projects-ac343338.vercel.app",
         "https://www.bridger-8u91muc0s-samarth-vermas-projects-ac343338.vercel.app",
         "https://bridger-eight.vercel.app",
+        "https://bridger.onrender.com",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         #"http://127.0.0.1:3000"
