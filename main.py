@@ -15,6 +15,12 @@ from datetime import datetime
 from database import SessionLocal
 import models
 import requests
+import asyncio
+import sys
+import os
+from pydoll.browser.chromium import Chrome
+from pydoll.browser.options import ChromiumOptions
+import platform
 
 load_dotenv()
 
@@ -27,96 +33,77 @@ SCOPES = [
 
 async def clientProcess(clientLink):
     try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
-            context = await browser.new_context(
-                viewport={'width': 850, 'height': 800}
-            )
-            page = await context.new_page()
+        options = ChromiumOptions()
+        
+        # Set Chrome binary location based on OS
+        if platform.system() == "Darwin":  # macOS
+            options.binary_location = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        elif platform.system() == "Linux":
+            options.binary_location = "/usr/bin/google-chrome-stable"
+        elif platform.system() == "Windows":
+            options.binary_location = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+        
+        options.add_argument('--headless=new')
+        options.add_argument('--start-maximized')
+        options.add_argument('--disable-notifications')
+
+        async with Chrome(options=options) as browser:
+            tab = await browser.start()
             print("Opening LinkedIn login page...")
-            await page.goto("https://www.linkedin.com/login")
-
-            username = os.getenv("USERNAME")
-            password = os.getenv("PASSWORD")
-
+            await tab.go_to("https://www.linkedin.com/login")
+        
             print("Logging in automatically...")
             try:
-                await page.wait_for_selector("#username", timeout=10000)
-                await page.wait_for_timeout(2000)
-                await page.fill("#username", username)
-                await page.wait_for_timeout(1500)
-                await page.fill("#password", password)
-                await page.wait_for_timeout(2000)
-                await page.click("button[type='submit']")
-                await page.wait_for_url("https://www.linkedin.com/feed/", timeout=45000)
+                # Find login form elements using Pydoll's find method
+                username_field = await tab.find(id='username')
+                password_field = await tab.find(id='password')
+                
+                # Type credentials with realistic timing
+                await username_field.type_text(os.getenv("USERNAME"), interval=0.15)
+                await password_field.type_text(os.getenv("PASSWORD"), interval=0.15)
+
+                # Find and click submit button
+                submit_button = await tab.query('button[type="submit"]')
+                await submit_button.click()
+
+                '''
+                # CHECK HERE IF URL IS https://www.linkedin.com/feed/
+                current_url = await tab.execute_script('return window.location.href')
+                url = current_url["result"]["result"]["value"]
+                print("CURRENT URL: ", url)
+
+                await asyncio.sleep(2)
+                if url.startswith("https://www.linkedin.com/feed/"):
+                    print("✅ Successfully logged in and redirected to feed!")
+                else:
+                    print(f"⚠️ Unexpected URL after login: {url}")
+                    return None
+                '''
                 print("✅ Successfully logged in!")
             except Exception as e:
                 print(f"❌ Login failed: {str(e)}")
                 return None
 
             print(f"Opening profile: {clientLink}")
-            await page.goto(clientLink)
-            await page.wait_for_timeout(1000)
+            await tab.go_to(clientLink)
+            await asyncio.sleep(1)
 
             print("Extracting profile text...")
-            await page.wait_for_timeout(1000)
+            await asyncio.sleep(1)
 
-            profile_text = await page.locator('.ZUMfuREyJUboAigOglxAGMXYsygQhCjWNs').inner_text()
-            await page.wait_for_timeout(3000)
-            deduped_text = dedupe_paragraphs(profile_text)
-            final_cleaned_text = clean_profile_text(deduped_text)
+            profile_section = await tab.query('div#profile-content.extended.tetris.pv-profile-body-wrapper')
+            profile_text = await profile_section.text
+            await asyncio.sleep(1)
 
+            final_cleaned_text = clean_linkedin_profile_text(profile_text)
+
+            #print("CLEANED PROFILE: ", final_cleaned_text)
             print("✅ Profile data extracted")
             return final_cleaned_text
 
     except Exception as e:
         print(f"❌ Error in clientProcess: {e}")
         return None
-
-
-def clean_profile_text(raw_text: str) -> str:
-    junk_phrases = {
-        "Follow", "Show all", "Activity", "Recent posts", "Explore Premium profiles",
-        "People you may know", "Message", "Connect", "More", "Companies", "Schools",
-        "Show all companies", "Show all 11 skills", "LinkedIn News", "Contact info",
-        "followers", "connections", "hasn't posted yet"
-    }
-
-    seen = set()
-    cleaned_lines = []
-
-    for line in raw_text.split('\n'):
-        line = line.strip()
-        if not line:
-            continue
-        # Skip if already seen
-        if line in seen:
-            continue
-        # Skip if it contains junk
-        if any(junk.lower() in line.lower() for junk in junk_phrases):
-            continue
-        seen.add(line)
-        cleaned_lines.append(line)
-
-    return '\n'.join(cleaned_lines)
-
-def dedupe_paragraphs(raw_text: str) -> str:
-    seen = set()
-    cleaned = []
-
-    # Split text into paragraphs based on two or more newlines
-    paragraphs = re.split(r'\n{2,}', raw_text)
-
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
-        if para in seen:
-            continue
-        seen.add(para)
-        cleaned.append(para)
-
-    return '\n\n'.join(cleaned)
 
 def authenticate_gmail():
     creds = None
@@ -284,3 +271,53 @@ email//subject//body"""}
 def validLink(url):
     pattern = re.compile(r"^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?$")
     return bool(pattern.match(url))
+
+def clean_linkedin_profile_text(raw_text: str) -> str:
+    if "Status is online" in raw_text:
+        raw_text = raw_text.replace("Status is online", "")    
+    
+    raw_text = raw_text[:-1550]
+    
+    # Normalize whitespace and remove extra spaces
+    text = re.sub(r'\s+', ' ', raw_text.strip())
+    
+    # Remove common UI elements and boilerplate text
+    ui_elements = [
+        "Send profile in a message", "Save to PDF", "Saved items", "Activity", 
+        "About this profile", "Add profile section", "Open to", "Enhance profile",
+        "Resources", "Create a post", "Show all activity", "Show all companies", 
+        "Show all", "Following", "Private to you", "Contact info", 
+        "Your viewers also viewed", "People you may know", "You might like",
+        "Pages for you", "LinkedIn News", "Profile language", "Public profile & URL",
+        "View", "Connect", "Follow", "Get started", "Discover who's viewed your profile",
+        "Start a post to increase engagement", "See how often you appear in search results",
+        "Show all analytics", "Analytics", "Past 7 days", "You haven't posted yet",
+        "Posts you share will be displayed here", "Tell non-profits", "you're interested in",
+        "getting involved with your time and skills", "connections", "followers",
+        "profile views", "post impressions", "search appearances", "From your school"
+    ]
+    
+    for element in ui_elements:
+        text = text.replace(element, '')
+    
+    # Remove duplicate content patterns
+    text = re.sub(r'([^·]+)(?:\s*·\s*\1)+', r'\1', text)  # Remove repeated content with bullet separators
+    text = re.sub(r'([^–]+)(?:\s*–\s*\1)+', r'\1', text)  # Remove repeated content with dash separators
+    
+    # Remove duplicate sentences
+    sentences = text.split('.')
+    unique_sentences = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if sentence and sentence not in unique_sentences:
+            unique_sentences.append(sentence)
+    
+    # Join back together
+    cleaned_text = '. '.join(unique_sentences)
+    
+    # Clean up any remaining artifacts
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()  # Normalize whitespace
+    cleaned_text = re.sub(r'\(\s*\)', '', cleaned_text)  # Remove empty parentheses
+    cleaned_text = re.sub(r'\.+', '.', cleaned_text)  # Remove multiple periods
+    
+    return cleaned_text
