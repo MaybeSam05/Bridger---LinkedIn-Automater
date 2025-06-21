@@ -43,9 +43,25 @@ async def clientProcess(clientLink):
         elif platform.system() == "Windows":
             options.binary_location = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
         
+        # Chrome options for Docker/headless environment
         options.add_argument('--headless=new')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--disable-web-security')
+        options.add_argument('--disable-features=VizDisplayCompositor')
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-plugins')
+        options.add_argument('--disable-images')
+        options.add_argument('--disable-background-timer-throttling')
+        options.add_argument('--disable-backgrounding-occluded-windows')
+        options.add_argument('--disable-renderer-backgrounding')
+        options.add_argument('--disable-field-trial-config')
+        options.add_argument('--disable-ipc-flooding-protection')
+        options.add_argument('--window-size=1920,1080')
         options.add_argument('--start-maximized')
         options.add_argument('--disable-notifications')
+        options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
         async with Chrome(options=options) as browser:
             tab = await browser.start()
