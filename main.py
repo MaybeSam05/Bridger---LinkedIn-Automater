@@ -18,6 +18,7 @@ import requests
 import asyncio
 import sys
 import os
+import random
 from pydoll.browser.chromium import Chrome
 from pydoll.browser.options import ChromiumOptions
 import platform
@@ -34,7 +35,11 @@ SCOPES = [
 async def clientProcess(clientLink):
     try:
         options = ChromiumOptions()
-        
+
+        user_agents = ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.112 Safari/537.36", "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.112 Safari/537.36", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.112 Safari/537.36", "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.112 Mobile Safari/537.36", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.6422.112 Mobile/15E148 Safari/604.1"]
+        window_sizes = ["1920,937", "1536,864", "1600,900", "1366,768", "1280,800"]
+        websites = ["https://www.walmart.com/shop/deals/flash-deals?athAsset=eyJhdGhjcGlkIjoiOTIwNjgzNzEtMDY3Mi00Y2YyLTgyZTItMmM1ZjY2NjFiMzI1IiwiYXRoZ2FpIjoiMSIsImFld3IiOiJDVFIifQ==&athena=true", "https://www.nytimes.com/section/opinion", "https://www.netflix.com/login?nextpage=https%3A%2F%2Fwww.netflix.com%2Fbrowse", "https://www.youtube.com/playlist?list=PLre5AT9JnKShBOPeuiD9b-I4XROIJhkIU"]
+
         # Set Chrome binary location based on OS
         if platform.system() == "Darwin":  # macOS
             options.binary_location = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -47,54 +52,41 @@ async def clientProcess(clientLink):
         options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--disable-web-security')
-        options.add_argument('--disable-features=VizDisplayCompositor')
-        options.add_argument('--disable-extensions')
-        options.add_argument('--disable-plugins')
-        options.add_argument('--disable-images')
-        options.add_argument('--disable-background-timer-throttling')
-        options.add_argument('--disable-backgrounding-occluded-windows')
-        options.add_argument('--disable-renderer-backgrounding')
-        options.add_argument('--disable-field-trial-config')
-        options.add_argument('--disable-ipc-flooding-protection')
-        options.add_argument('--window-size=1920,1080')
-        options.add_argument('--start-maximized')
-        options.add_argument('--disable-notifications')
-        options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+
+        options.add_argument(f'--window-size={random.choice(window_sizes)}')
+        options.add_argument(f'--user-agent={random.choice(user_agents)}')
 
         async with Chrome(options=options) as browser:
             tab = await browser.start()
             print("Opening LinkedIn login page...")
+            await tab.go_to(random.choice(websites))
+            await tab.go_to(random.choice(websites))
+            await tab.go_to(random.choice(websites))
+
             await tab.go_to("https://www.linkedin.com/login")
         
             print("Logging in automatically...")
             try:
+
+                await tab.execute_script("""
+                    const evt = new MouseEvent('mousemove', {
+                        bubbles: true, clientX: 400 + Math.random() * 50, clientY: 300 + Math.random() * 50
+                    });
+                    document.dispatchEvent(evt);
+                """)
+
                 # Find login form elements using Pydoll's find method
                 username_field = await tab.find(id='username')
                 password_field = await tab.find(id='password')
                 
                 # Type credentials with realistic timing
-                await username_field.type_text(os.getenv("USERNAME"), interval=0.15)
-                await password_field.type_text(os.getenv("PASSWORD"), interval=0.15)
+                await username_field.type_text(os.getenv("USERNAME"), interval=random.uniform(0.08, 0.14))
+                await password_field.type_text(os.getenv("PASSWORD"), random.uniform(0.08, 0.14))
 
                 # Find and click submit button
                 submit_button = await tab.query('button[type="submit"]')
                 await submit_button.click()
 
-                '''
-                # CHECK HERE IF URL IS https://www.linkedin.com/feed/
-                current_url = await tab.execute_script('return window.location.href')
-                url = current_url["result"]["result"]["value"]
-                print("CURRENT URL: ", url)
-
-                await asyncio.sleep(2)
-                if url.startswith("https://www.linkedin.com/feed/"):
-                    print("✅ Successfully logged in and redirected to feed!")
-                else:
-                    print(f"⚠️ Unexpected URL after login: {url}")
-                    return None
-                '''
                 print("✅ Successfully logged in!")
             except Exception as e:
                 print(f"❌ Login failed: {str(e)}")
@@ -102,14 +94,15 @@ async def clientProcess(clientLink):
 
             print(f"Opening profile: {clientLink}")
             await tab.go_to(clientLink)
-            await asyncio.sleep(1)
+            await asyncio.sleep(random.uniform(0.5, 2.0)) 
 
             print("Extracting profile text...")
-            await asyncio.sleep(1)
+            await asyncio.sleep(random.uniform(0.5, 2.0)) 
+
 
             profile_section = await tab.query('div#profile-content.extended.tetris.pv-profile-body-wrapper')
             profile_text = await profile_section.text
-            await asyncio.sleep(1)
+            await asyncio.sleep(random.uniform(0.5, 2.0))  
 
             final_cleaned_text = clean_linkedin_profile_text(profile_text)
 
